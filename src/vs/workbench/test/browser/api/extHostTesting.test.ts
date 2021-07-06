@@ -4,307 +4,450 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { MirroredTestCollection, OwnedTestCollection, SingleUseTestCollection } from 'vs/workbench/api/common/extHostTesting';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Iterable } from 'vs/base/common/iterator';
+import { mockObject, MockObject } from 'vs/base/test/common/mock';
+import { MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
+import { TestRunCoordinator, TestRunDto } from 'vs/workbench/api/common/extHostTesting';
 import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
-import { TestRunState, TestState } from 'vs/workbench/api/common/extHostTypes';
-import { TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { TestChangeEvent, TestItem } from 'vscode';
+import { TestMessage } from 'vs/workbench/api/common/extHostTypes';
+import { TestDiffOpType, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestItemImpl, TestResultState, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
+import { TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
+import type { TestItem, TestRunRequest } from 'vscode';
 
-const stubTest = (label: string): TestItem => ({
-	label,
-	location: undefined,
-	state: new TestState(TestRunState.Unset),
-	debuggable: true,
-	runnable: true,
-	description: ''
+const simplify = (item: TestItem) => ({
+	id: item.id,
+	label: item.label,
+	uri: item.uri,
+	range: item.range,
+	runnable: item.runnable,
+	debuggable: item.debuggable,
 });
 
-const simplify = (item: TestItem) => {
-	if ('toJSON' in item) {
-		item = (item as any).toJSON();
+const assertTreesEqual = (a: TestItem | undefined, b: TestItem | undefined) => {
+	if (!a) {
+		throw new assert.AssertionError({ message: 'Expected a to be defined', actual: a });
 	}
 
-	return { ...item, children: undefined };
-};
+	if (!b) {
+		throw new assert.AssertionError({ message: 'Expected b to be defined', actual: b });
+	}
 
-const assertTreesEqual = (a: Readonly<TestItem>, b: Readonly<TestItem>) => {
 	assert.deepStrictEqual(simplify(a), simplify(b));
 
-	const aChildren = (a.children ?? []).sort();
-	const bChildren = (b.children ?? []).sort();
+	const aChildren = [...a.children.keys()].slice().sort();
+	const bChildren = [...b.children.keys()].slice().sort();
 	assert.strictEqual(aChildren.length, bChildren.length, `expected ${a.label}.children.length == ${b.label}.children.length`);
-	aChildren.forEach((_, i) => assertTreesEqual(aChildren[i], bChildren[i]));
+	aChildren.forEach(key => assertTreesEqual(a.children.get(key), b.children.get(key)));
 };
 
-const assertTreeListEqual = (a: ReadonlyArray<Readonly<TestItem>>, b: ReadonlyArray<Readonly<TestItem>>) => {
-	assert.strictEqual(a.length, b.length, `expected a.length == n.length`);
-	a.forEach((_, i) => assertTreesEqual(a[i], b[i]));
-};
+// const assertTreeListEqual = (a: ReadonlyArray<TestItem>, b: ReadonlyArray<TestItem>) => {
+// 	assert.strictEqual(a.length, b.length, `expected a.length == n.length`);
+// 	a.forEach((_, i) => assertTreesEqual(a[i], b[i]));
+// };
 
-const stubNestedTests = () => ({
-	...stubTest('root'),
-	children: [
-		{ ...stubTest('a'), children: [stubTest('aa'), stubTest('ab')] },
-		stubTest('b'),
-	]
-});
+// class TestMirroredCollection extends MirroredTestCollection {
+// 	public changeEvent!: TestChangeEvent;
 
-class TestOwnedTestCollection extends OwnedTestCollection {
-	public get idToInternal() {
-		return this.testIdToInternal;
-	}
+// 	constructor() {
+// 		super();
+// 		this.onDidChangeTests(evt => this.changeEvent = evt);
+// 	}
 
-	public createForHierarchy(publishDiff: (diff: TestsDiff) => void = () => undefined) {
-		return new TestSingleUseCollection(this.testIdToInternal, publishDiff);
-	}
-}
-
-class TestSingleUseCollection extends SingleUseTestCollection {
-	private idCounter = 0;
-
-	public get itemToInternal() {
-		return this.testItemToInternal;
-	}
-
-	public get currentDiff() {
-		return this.diff;
-	}
-
-	protected getId() {
-		return String(this.idCounter++);
-	}
-
-	public setDiff(diff: TestsDiff) {
-		this.diff = diff;
-	}
-}
-
-class TestMirroredCollection extends MirroredTestCollection {
-	public changeEvent!: TestChangeEvent;
-
-	constructor() {
-		super();
-		this.onDidChangeTests(evt => this.changeEvent = evt);
-	}
-
-	public get length() {
-		return this.items.size;
-	}
-}
+// 	public get length() {
+// 		return this.items.size;
+// 	}
+// }
 
 suite('ExtHost Testing', () => {
 	let single: TestSingleUseCollection;
-	let owned: TestOwnedTestCollection;
 	setup(() => {
-		owned = new TestOwnedTestCollection();
-		single = owned.createForHierarchy(d => single.setDiff(d /* don't clear during testing */));
+		single = testStubs.nested();
+		single.onDidGenerateDiff(d => single.setDiff(d /* don't clear during testing */));
 	});
 
 	teardown(() => {
 		single.dispose();
-		assert.deepEqual(owned.idToInternal.size, 0, 'expected owned ids to be empty after dispose');
 	});
 
 	suite('OwnedTestCollection', () => {
-		test('adds a root recursively', () => {
-			const tests = stubNestedTests();
-			single.addRoot(tests, 'pid');
+		test('adds a root recursively', async () => {
+			await single.expand(single.root.id, Infinity);
 			assert.deepStrictEqual(single.collectDiff(), [
-				[TestDiffOpType.Add, { id: '0', providerId: 'pid', parent: null, item: convert.TestItem.from(stubTest('root')) }],
-				[TestDiffOpType.Add, { id: '1', providerId: 'pid', parent: '0', item: convert.TestItem.from(stubTest('a')) }],
-				[TestDiffOpType.Add, { id: '2', providerId: 'pid', parent: '1', item: convert.TestItem.from(stubTest('aa')) }],
-				[TestDiffOpType.Add, { id: '3', providerId: 'pid', parent: '1', item: convert.TestItem.from(stubTest('ab')) }],
-				[TestDiffOpType.Add, { id: '4', providerId: 'pid', parent: '0', item: convert.TestItem.from(stubTest('b')) }],
+				[
+					TestDiffOpType.Add,
+					{ controllerId: 'ctrlId', parent: null, expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(single.root) } }
+				],
+				[
+					TestDiffOpType.Add,
+					{ controllerId: 'ctrlId', parent: single.root.id, expand: TestItemExpandState.Expandable, item: { ...convert.TestItem.from(single.tree.get('id-a')!.actual) } }
+				],
+				[
+					TestDiffOpType.Add,
+					{ controllerId: 'ctrlId', parent: single.root.id, expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(single.tree.get('id-b')!.actual) }
+				],
+				[
+					TestDiffOpType.Update,
+					{ extId: single.root.id, expand: TestItemExpandState.Expanded }
+				],
+				[
+					TestDiffOpType.Update,
+					{ extId: 'id-a', expand: TestItemExpandState.BusyExpanding }
+				],
+				[
+					TestDiffOpType.Add,
+					{ controllerId: 'ctrlId', parent: 'id-a', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(single.tree.get('id-aa')!.actual) }
+				],
+				[
+					TestDiffOpType.Add,
+					{ controllerId: 'ctrlId', parent: 'id-a', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(single.tree.get('id-ab')!.actual) }
+				],
+				[
+					TestDiffOpType.Update,
+					{ extId: 'id-a', expand: TestItemExpandState.Expanded }
+				],
 			]);
 		});
 
 		test('no-ops if items not changed', () => {
-			const tests = stubNestedTests();
-			single.addRoot(tests, 'pid');
 			single.collectDiff();
 			assert.deepStrictEqual(single.collectDiff(), []);
 		});
 
 		test('watches property mutations', () => {
-			const tests = stubNestedTests();
-			single.addRoot(tests, 'pid');
+			single.expand(single.root.id, Infinity);
 			single.collectDiff();
-			tests.children![0].description = 'Hello world'; /* item a */
-			single.onItemChange(tests, 'pid');
-			assert.deepStrictEqual(single.collectDiff(), [
-				[TestDiffOpType.Update, { id: '1', parent: '0', providerId: 'pid', item: convert.TestItem.from({ ...stubTest('a'), description: 'Hello world' }) }],
-			]);
+			single.root.children.get('id-a')!.description = 'Hello world'; /* item a */
 
-			single.onItemChange(tests, 'pid');
-			assert.deepStrictEqual(single.collectDiff(), []);
+			assert.deepStrictEqual(single.collectDiff(), [
+				[
+					TestDiffOpType.Update,
+					{ extId: 'id-a', item: { description: 'Hello world' } }],
+			]);
 		});
 
 		test('removes children', () => {
-			const tests = stubNestedTests();
-			single.addRoot(tests, 'pid');
+			single.expand(single.root.id, Infinity);
 			single.collectDiff();
-			tests.children!.splice(0, 1);
-			single.onItemChange(tests, 'pid');
+			single.root.children.get('id-a')!.dispose();
 
 			assert.deepStrictEqual(single.collectDiff(), [
-				[TestDiffOpType.Remove, '1'],
+				[TestDiffOpType.Remove, 'id-a'],
 			]);
-			assert.deepStrictEqual([...owned.idToInternal.keys()].sort(), ['0', '4']);
+			assert.deepStrictEqual([...single.tree].map(n => n.item.extId).sort(), [single.root.id, 'id-b']);
 			assert.strictEqual(single.itemToInternal.size, 2);
 		});
 
 		test('adds new children', () => {
-			const tests = stubNestedTests();
-			single.addRoot(tests, 'pid');
+			single.expand(single.root.id, Infinity);
 			single.collectDiff();
-			const child = stubTest('ac');
-			tests.children![0].children!.push(child);
-			single.onItemChange(tests, 'pid');
+			const child = new TestItemImpl('id-ac', 'c', undefined, undefined, single.root.children.get('id-a'));
 
 			assert.deepStrictEqual(single.collectDiff(), [
-				[TestDiffOpType.Add, { id: '5', providerId: 'pid', parent: '1', item: convert.TestItem.from(child) }],
+				[TestDiffOpType.Add, {
+					controllerId: 'ctrlId',
+					parent: 'id-a',
+					expand: TestItemExpandState.NotExpandable,
+					item: convert.TestItem.from(child),
+				}],
 			]);
-			assert.deepStrictEqual([...owned.idToInternal.keys()].sort(), ['0', '1', '2', '3', '4', '5']);
+			assert.deepStrictEqual(
+				[...single.tree].map(n => n.item.extId).sort(),
+				[single.root.id, 'id-a', 'id-aa', 'id-ab', 'id-ac', 'id-b'],
+			);
 			assert.strictEqual(single.itemToInternal.size, 6);
 		});
 	});
 
+
 	suite('MirroredTestCollection', () => {
-		let m: TestMirroredCollection;
-		setup(() => m = new TestMirroredCollection());
+		// todo@connor4312: re-renable when we figure out what observing looks like we async children
+		// 	let m: TestMirroredCollection;
+		// 	setup(() => m = new TestMirroredCollection());
 
-		test('mirrors creation of the root', () => {
-			const tests = stubNestedTests();
-			single.addRoot(tests, 'pid');
-			m.apply(single.collectDiff());
-			assertTreesEqual(m.rootTestItems[0], owned.getTestById('0')!.actual);
-			assert.strictEqual(m.length, single.itemToInternal.size);
+		// 	test('mirrors creation of the root', () => {
+		// 		const tests = testStubs.nested();
+		// 		single.addRoot(tests, 'pid');
+		// 		single.expand(single.root.id, Infinity);
+		// 		m.apply(single.collectDiff());
+		// 		assertTreesEqual(m.rootTestItems[0], owned.getTestById(single.root.id)![1].actual);
+		// 		assert.strictEqual(m.length, single.itemToInternal.size);
+		// 	});
+
+		// 	test('mirrors node deletion', () => {
+		// 		const tests = testStubs.nested();
+		// 		single.addRoot(tests, 'pid');
+		// 		m.apply(single.collectDiff());
+		// 		single.expand(single.root.id, Infinity);
+		// 		tests.children!.splice(0, 1);
+		// 		single.onItemChange(tests, 'pid');
+		// 		single.expand(single.root.id, Infinity);
+		// 		m.apply(single.collectDiff());
+
+		// 		assertTreesEqual(m.rootTestItems[0], owned.getTestById(single.root.id)![1].actual);
+		// 		assert.strictEqual(m.length, single.itemToInternal.size);
+		// 	});
+
+		// 	test('mirrors node addition', () => {
+		// 		const tests = testStubs.nested();
+		// 		single.addRoot(tests, 'pid');
+		// 		m.apply(single.collectDiff());
+		// 		tests.children![0].children!.push(stubTest('ac'));
+		// 		single.onItemChange(tests, 'pid');
+		// 		m.apply(single.collectDiff());
+
+		// 		assertTreesEqual(m.rootTestItems[0], owned.getTestById(single.root.id)![1].actual);
+		// 		assert.strictEqual(m.length, single.itemToInternal.size);
+		// 	});
+
+		// 	test('mirrors node update', () => {
+		// 		const tests = testStubs.nested();
+		// 		single.addRoot(tests, 'pid');
+		// 		m.apply(single.collectDiff());
+		// 		tests.children![0].description = 'Hello world'; /* item a */
+		// 		single.onItemChange(tests, 'pid');
+		// 		m.apply(single.collectDiff());
+
+		// 		assertTreesEqual(m.rootTestItems[0], owned.getTestById(single.root.id)![1].actual);
+		// 	});
+
+		// 	suite('MirroredChangeCollector', () => {
+		// 		let tests = testStubs.nested();
+		// 		setup(() => {
+		// 			tests = testStubs.nested();
+		// 			single.addRoot(tests, 'pid');
+		// 			m.apply(single.collectDiff());
+		// 		});
+
+		// 		test('creates change for root', () => {
+		// 			assertTreeListEqual(m.changeEvent.added, [
+		// 				tests,
+		// 				tests.children[0],
+		// 				tests.children![0].children![0],
+		// 				tests.children![0].children![1],
+		// 				tests.children[1],
+		// 			]);
+		// 			assertTreeListEqual(m.changeEvent.removed, []);
+		// 			assertTreeListEqual(m.changeEvent.updated, []);
+		// 		});
+
+		// 		test('creates change for delete', () => {
+		// 			const rm = tests.children.shift()!;
+		// 			single.onItemChange(tests, 'pid');
+		// 			m.apply(single.collectDiff());
+
+		// 			assertTreeListEqual(m.changeEvent.added, []);
+		// 			assertTreeListEqual(m.changeEvent.removed, [
+		// 				{ ...rm },
+		// 				{ ...rm.children![0] },
+		// 				{ ...rm.children![1] },
+		// 			]);
+		// 			assertTreeListEqual(m.changeEvent.updated, []);
+		// 		});
+
+		// 		test('creates change for update', () => {
+		// 			tests.children[0].label = 'updated!';
+		// 			single.onItemChange(tests, 'pid');
+		// 			m.apply(single.collectDiff());
+
+		// 			assertTreeListEqual(m.changeEvent.added, []);
+		// 			assertTreeListEqual(m.changeEvent.removed, []);
+		// 			assertTreeListEqual(m.changeEvent.updated, [tests.children[0]]);
+		// 		});
+
+		// 		test('is a no-op if a node is added and removed', () => {
+		// 			const nested = testStubs.nested('id2-');
+		// 			tests.children.push(nested);
+		// 			single.onItemChange(tests, 'pid');
+		// 			tests.children.pop();
+		// 			single.onItemChange(tests, 'pid');
+		// 			const previousEvent = m.changeEvent;
+		// 			m.apply(single.collectDiff());
+		// 			assert.strictEqual(m.changeEvent, previousEvent);
+		// 		});
+
+		// 		test('is a single-op if a node is added and changed', () => {
+		// 			const child = stubTest('c');
+		// 			tests.children.push(child);
+		// 			single.onItemChange(tests, 'pid');
+		// 			child.label = 'd';
+		// 			single.onItemChange(tests, 'pid');
+		// 			m.apply(single.collectDiff());
+
+		// 			assertTreeListEqual(m.changeEvent.added, [child]);
+		// 			assertTreeListEqual(m.changeEvent.removed, []);
+		// 			assertTreeListEqual(m.changeEvent.updated, []);
+		// 		});
+
+		// 		test('gets the common ancestor (1)', () => {
+		// 			tests.children![0].children![0].label = 'za';
+		// 			tests.children![0].children![1].label = 'zb';
+		// 			single.onItemChange(tests, 'pid');
+		// 			m.apply(single.collectDiff());
+
+		// 		});
+
+		// 		test('gets the common ancestor (2)', () => {
+		// 			tests.children![0].children![0].label = 'za';
+		// 			tests.children![1].label = 'ab';
+		// 			single.onItemChange(tests, 'pid');
+		// 			m.apply(single.collectDiff());
+		// 		});
+		// 	});
+	});
+
+	suite('TestRunTracker', () => {
+		let proxy: MockObject<MainThreadTestingShape>;
+		let c: TestRunCoordinator;
+		let cts: CancellationTokenSource;
+
+		let req: TestRunRequest;
+
+		let dto: TestRunDto;
+
+		setup(() => {
+			proxy = mockObject();
+			cts = new CancellationTokenSource();
+			c = new TestRunCoordinator(proxy);
+
+			req = {
+				tests: [single.root],
+				exclude: [single.root.children.get('id-b')!],
+				debug: false,
+			};
+
+			dto = TestRunDto.fromInternal({
+				controllerId: 'ctrl',
+				debug: false,
+				excludeExtIds: ['id-b'],
+				runId: 'run-id',
+				testIds: [single.root.id],
+			});
 		});
 
-		test('mirrors node deletion', () => {
-			const tests = stubNestedTests();
-			single.addRoot(tests, 'pid');
-			m.apply(single.collectDiff());
-			tests.children!.splice(0, 1);
-			single.onItemChange(tests, 'pid');
-			m.apply(single.collectDiff());
+		test('tracks a run started from a main thread request', () => {
+			const tracker = c.prepareForMainThreadTestRun(req, dto, cts.token);
+			assert.strictEqual(tracker.isRunning, false);
 
-			assertTreesEqual(m.rootTestItems[0], owned.getTestById('0')!.actual);
-			assert.strictEqual(m.length, single.itemToInternal.size);
+			const task1 = c.createTestRun('ctrl', req, 'run1', true);
+			const task2 = c.createTestRun('ctrl', req, 'run2', true);
+			assert.strictEqual(proxy.$startedExtensionTestRun.called, false);
+			assert.strictEqual(tracker.isRunning, true);
+
+			task1.appendOutput('hello');
+			assert.deepStrictEqual([['run-id', (task1 as any).taskId, VSBuffer.fromString('hello')]], proxy.$appendOutputToRun.args);
+			task1.end();
+
+			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
+			assert.strictEqual(tracker.isRunning, true);
+
+			task2.end();
+
+			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
+			assert.strictEqual(tracker.isRunning, false);
 		});
 
-		test('mirrors node addition', () => {
-			const tests = stubNestedTests();
-			single.addRoot(tests, 'pid');
-			m.apply(single.collectDiff());
-			tests.children![0].children!.push(stubTest('ac'));
-			single.onItemChange(tests, 'pid');
-			m.apply(single.collectDiff());
+		test('tracks a run started from an extension request', () => {
+			const task1 = c.createTestRun('ctrl', req, 'hello world', false);
 
-			assertTreesEqual(m.rootTestItems[0], owned.getTestById('0')!.actual);
-			assert.strictEqual(m.length, single.itemToInternal.size);
+			const tracker = Iterable.first(c.trackers)!;
+			assert.strictEqual(tracker.isRunning, true);
+			assert.deepStrictEqual(proxy.$startedExtensionTestRun.args, [
+				[{
+					id: tracker.id,
+					tests: [single.root.id],
+					exclude: ['id-b'],
+					debug: false,
+					persist: false,
+				}]
+			]);
+
+			const task2 = c.createTestRun('ctrl', req, 'run2', true);
+			const task3Detached = c.createTestRun('ctrl', { ...req }, 'task3Detached', true);
+
+			task1.end();
+			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
+			assert.strictEqual(tracker.isRunning, true);
+
+			task2.end();
+			assert.deepStrictEqual(proxy.$finishedExtensionTestRun.args, [[tracker.id]]);
+			assert.strictEqual(tracker.isRunning, false);
+
+			task3Detached.end();
 		});
 
-		test('mirrors node update', () => {
-			const tests = stubNestedTests();
-			single.addRoot(tests, 'pid');
-			m.apply(single.collectDiff());
-			tests.children![0].description = 'Hello world'; /* item a */
-			single.onItemChange(tests, 'pid');
-			m.apply(single.collectDiff());
+		test('adds tests to run smartly', () => {
+			const task1 = c.createTestRun('ctrl', req, 'hello world', false);
+			const tracker = Iterable.first(c.trackers)!;
+			const expectedArgs: unknown[][] = [];
+			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
+			single.expand(single.root.id, Infinity);
 
-			assertTreesEqual(m.rootTestItems[0], owned.getTestById('0')!.actual);
+			task1.setState(single.root.children.get('id-a')!.children.get('id-aa')!, TestResultState.Passed);
+			expectedArgs.push([
+				'ctrl',
+				tracker.id,
+				[
+					convert.TestItem.from(single.root),
+					convert.TestItem.from(single.root.children.get('id-a')!),
+					convert.TestItem.from(single.root.children.get('id-a')!.children.get('id-aa')!),
+				]
+			]);
+			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
+
+
+			task1.setState(single.root.children.get('id-a')!.children.get('id-ab')!, TestResultState.Queued);
+			expectedArgs.push([
+				'ctrl',
+				tracker.id,
+				[
+					convert.TestItem.from(single.root.children.get('id-a')!),
+					convert.TestItem.from(single.root.children.get('id-a')!.children.get('id-ab')!),
+				],
+			]);
+			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
+
+			task1.setState(single.root.children.get('id-a')!.children.get('id-ab')!, TestResultState.Passed);
+			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
 		});
 
-		suite('MirroredChangeCollector', () => {
-			let tests = stubNestedTests();
-			setup(() => {
-				tests = stubNestedTests();
-				single.addRoot(tests, 'pid');
-				m.apply(single.collectDiff());
-			});
+		test('guards calls after runs are ended', () => {
+			const task = c.createTestRun('ctrl', req, 'hello world', false);
+			task.end();
 
-			test('creates change for root', () => {
-				assert.deepStrictEqual(m.changeEvent.commonChangeAncestor, null);
-				assertTreeListEqual(m.changeEvent.added, [
-					tests,
-					tests.children[0],
-					tests.children![0].children![0],
-					tests.children![0].children![1],
-					tests.children[1],
-				]);
-				assertTreeListEqual(m.changeEvent.removed, []);
-				assertTreeListEqual(m.changeEvent.updated, []);
-			});
+			task.setState(single.root, TestResultState.Passed);
+			task.appendMessage(single.root, new TestMessage('some message'));
+			task.appendOutput('output');
 
-			test('creates change for delete', () => {
-				const rm = tests.children.shift()!;
-				single.onItemChange(tests, 'pid');
-				m.apply(single.collectDiff());
+			assert.strictEqual(proxy.$addTestsToRun.called, false);
+			assert.strictEqual(proxy.$appendOutputToRun.called, false);
+			assert.strictEqual(proxy.$appendTestMessageInRun.called, false);
+		});
 
-				assertTreesEqual(m.changeEvent.commonChangeAncestor!, tests);
-				assertTreeListEqual(m.changeEvent.added, []);
-				assertTreeListEqual(m.changeEvent.removed, [
-					{ ...rm, children: [] },
-					{ ...rm.children![0], children: [] },
-					{ ...rm.children![1], children: [] },
-				]);
-				assertTreeListEqual(m.changeEvent.updated, []);
-			});
+		test('excludes tests outside tree or explicitly excluded', () => {
+			single.expand(single.root.id, Infinity);
 
-			test('creates change for update', () => {
-				tests.children[0].label = 'updated!';
-				single.onItemChange(tests, 'pid');
-				m.apply(single.collectDiff());
+			const task = c.createTestRun('ctrl', {
+				debug: false,
+				tests: [single.root.children.get('id-a')!],
+				exclude: [single.root.children.get('id-a')!.children.get('id-aa')!],
+			}, 'hello world', false);
 
-				assert.deepStrictEqual(m.changeEvent.commonChangeAncestor?.label, 'updated!');
-				assertTreeListEqual(m.changeEvent.added, []);
-				assertTreeListEqual(m.changeEvent.removed, []);
-				assertTreeListEqual(m.changeEvent.updated, [tests.children[0]]);
-			});
+			task.setState(single.root.children.get('b')!, TestResultState.Passed);
+			task.setState(single.root.children.get('id-a')!.children.get('id-aa')!, TestResultState.Passed);
+			task.setState(single.root.children.get('id-a')!.children.get('id-ab')!, TestResultState.Passed);
 
-			test('is a no-op if a node is added and removed', () => {
-				const nested = stubNestedTests();
-				tests.children.push(nested);
-				single.onItemChange(tests, 'pid');
-				tests.children.pop();
-				single.onItemChange(tests, 'pid');
-				const previousEvent = m.changeEvent;
-				m.apply(single.collectDiff());
-				assert.strictEqual(m.changeEvent, previousEvent);
-			});
-
-			test('is a single-op if a node is added and changed', () => {
-				const child = stubTest('c');
-				tests.children.push(child);
-				single.onItemChange(tests, 'pid');
-				child.label = 'd';
-				single.onItemChange(tests, 'pid');
-				m.apply(single.collectDiff());
-
-				assert.strictEqual(m.changeEvent.commonChangeAncestor?.label, 'root');
-				assertTreeListEqual(m.changeEvent.added, [child]);
-				assertTreeListEqual(m.changeEvent.removed, []);
-				assertTreeListEqual(m.changeEvent.updated, []);
-			});
-
-			test('gets the common ancestor (1)', () => {
-				tests.children![0].children![0].label = 'za';
-				tests.children![0].children![1].label = 'zb';
-				single.onItemChange(tests, 'pid');
-				m.apply(single.collectDiff());
-
-				assert.strictEqual(m.changeEvent.commonChangeAncestor?.label, 'a');
-			});
-
-			test('gets the common ancestor (2)', () => {
-				tests.children![0].children![0].label = 'za';
-				tests.children![1].label = 'ab';
-				single.onItemChange(tests, 'pid');
-				m.apply(single.collectDiff());
-
-				assert.strictEqual(m.changeEvent.commonChangeAncestor?.label, 'root');
-			});
+			assert.deepStrictEqual(proxy.$updateTestStateInRun.args.length, 1);
+			const args = proxy.$updateTestStateInRun.args[0];
+			assert.deepStrictEqual(proxy.$updateTestStateInRun.args, [[
+				args[0],
+				args[1],
+				'id-ab',
+				TestResultState.Passed,
+				undefined,
+			]]);
 		});
 	});
 });

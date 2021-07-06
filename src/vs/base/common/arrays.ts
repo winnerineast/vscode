@@ -121,58 +121,10 @@ export function quickSelect<T>(nth: number, data: T[], compare: Compare<T>): T {
 	}
 }
 
-/**
- * Like `Array#sort` but always stable. Usually runs a little slower `than Array#sort`
- * so only use this when actually needing stable sort.
- */
-export function mergeSort<T>(data: T[], compare: Compare<T>): T[] {
-	_sort(data, compare, 0, data.length - 1, []);
-	return data;
-}
-
-function _merge<T>(a: T[], compare: Compare<T>, lo: number, mid: number, hi: number, aux: T[]): void {
-	let leftIdx = lo, rightIdx = mid + 1;
-	for (let i = lo; i <= hi; i++) {
-		aux[i] = a[i];
-	}
-	for (let i = lo; i <= hi; i++) {
-		if (leftIdx > mid) {
-			// left side consumed
-			a[i] = aux[rightIdx++];
-		} else if (rightIdx > hi) {
-			// right side consumed
-			a[i] = aux[leftIdx++];
-		} else if (compare(aux[rightIdx], aux[leftIdx]) < 0) {
-			// right element is less -> comes first
-			a[i] = aux[rightIdx++];
-		} else {
-			// left element comes first (less or equal)
-			a[i] = aux[leftIdx++];
-		}
-	}
-}
-
-function _sort<T>(a: T[], compare: Compare<T>, lo: number, hi: number, aux: T[]) {
-	if (hi <= lo) {
-		return;
-	}
-	const mid = lo + ((hi - lo) / 2) | 0;
-	_sort(a, compare, lo, mid, aux);
-	_sort(a, compare, mid + 1, hi, aux);
-	if (compare(a[mid], a[mid + 1]) <= 0) {
-		// left and right are sorted and if the last-left element is less
-		// or equals than the first-right element there is nothing else
-		// to do
-		return;
-	}
-	_merge(a, compare, lo, mid, hi, aux);
-}
-
-
 export function groupBy<T>(data: ReadonlyArray<T>, compare: (a: T, b: T) => number): T[][] {
 	const result: T[][] = [];
 	let currentGroup: T[] | undefined = undefined;
-	for (const element of mergeSort(data.slice(0), compare)) {
+	for (const element of data.slice(0).sort(compare)) {
 		if (!currentGroup || compare(currentGroup[0], element) !== 0) {
 			currentGroup = [element];
 			result.push(currentGroup);
@@ -601,4 +553,87 @@ export function mapFind<T, R>(array: Iterable<T>, mapFn: (value: T) => R | undef
 	}
 
 	return undefined;
+}
+
+/**
+ * Like Math.min with a delegate, and returns the winning index
+ */
+export function minIndex<T>(array: readonly T[], fn: (value: T) => number): number {
+	let minValue = Number.MAX_SAFE_INTEGER;
+	let minIdx = 0;
+	array.forEach((value, i) => {
+		const thisValue = fn(value);
+		if (thisValue < minValue) {
+			minValue = thisValue;
+			minIdx = i;
+		}
+	});
+
+	return minIdx;
+}
+
+/**
+ * Like Math.max with a delegate, and returns the winning index
+ */
+export function maxIndex<T>(array: readonly T[], fn: (value: T) => number): number {
+	let minValue = Number.MIN_SAFE_INTEGER;
+	let maxIdx = 0;
+	array.forEach((value, i) => {
+		const thisValue = fn(value);
+		if (thisValue > minValue) {
+			minValue = thisValue;
+			maxIdx = i;
+		}
+	});
+
+	return maxIdx;
+}
+
+export class ArrayQueue<T> {
+	private firstIdx = 0;
+	private lastIdx = this.items.length - 1;
+
+	/**
+	 * Constructs a queue that is backed by the given array. Runtime is O(1).
+	*/
+	constructor(private readonly items: T[]) { }
+
+	get length(): number {
+		return this.lastIdx - this.firstIdx + 1;
+	}
+
+	/**
+	 * Consumes elements from the beginning of the queue as long as the predicate returns true.
+	 * If no elements were consumed, `null` is returned. Has a runtime of O(result.length).
+	*/
+	takeWhile(predicate: (value: T) => boolean): T[] | null {
+		// P(k) := k <= this.lastIdx && predicate(this.items[k])
+		// Find s := min { k | k >= this.firstIdx && !P(k) } and return this.data[this.firstIdx...s)
+
+		let startIdx = this.firstIdx;
+		while (startIdx < this.items.length && predicate(this.items[startIdx])) {
+			startIdx++;
+		}
+		const result = startIdx === this.firstIdx ? null : this.items.slice(this.firstIdx, startIdx);
+		this.firstIdx = startIdx;
+		return result;
+	}
+
+	/**
+	 * Consumes elements from the end of the queue as long as the predicate returns true.
+	 * If no elements were consumed, `null` is returned.
+	 * The result has the same order as the underlying array!
+	*/
+	takeFromEndWhile(predicate: (value: T) => boolean): T[] | null {
+		// P(k) := this.firstIdx >= k && predicate(this.items[k])
+		// Find s := max { k | k <= this.lastIdx && !P(k) } and return this.data(s...this.lastIdx]
+
+		let endIdx = this.lastIdx;
+		while (endIdx >= 0 && predicate(this.items[endIdx])) {
+			endIdx--;
+		}
+		const result = endIdx === this.lastIdx ? null : this.items.slice(endIdx + 1, this.lastIdx + 1);
+		this.lastIdx = endIdx;
+		return result;
+	}
 }

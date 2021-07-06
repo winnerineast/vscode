@@ -156,7 +156,7 @@ async function toggleAutoAttachSetting(context: vscode.ExtensionContext, scope?:
 
 	quickPick.show();
 
-	const result = await new Promise<PickResult>(resolve => {
+	let result = await new Promise<PickResult>(resolve => {
 		quickPick.onDidAccept(() => resolve(quickPick.selectedItems[0]));
 		quickPick.onDidHide(() => resolve(undefined));
 		quickPick.onDidTriggerButton(() => {
@@ -179,7 +179,11 @@ async function toggleAutoAttachSetting(context: vscode.ExtensionContext, scope?:
 	}
 
 	if ('state' in result) {
-		section.update(SETTING_STATE, result.state, scope);
+		if (result.state !== current) {
+			section.update(SETTING_STATE, result.state, scope);
+		} else if (isTemporarilyDisabled) {
+			result = { setTempDisabled: false };
+		}
 	}
 
 	if ('setTempDisabled' in result) {
@@ -311,12 +315,10 @@ function updateStatusBar(context: vscode.ExtensionContext, state: State, busy = 
 	}
 
 	if (!statusItem) {
-		statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+		statusItem = vscode.window.createStatusBarItem('status.debug.autoAttach', vscode.StatusBarAlignment.Left);
+		statusItem.name = localize('status.name.auto.attach', "Debug Auto Attach");
 		statusItem.command = TOGGLE_COMMAND;
-		statusItem.tooltip = localize(
-			'status.tooltip.auto.attach',
-			'Automatically attach to node.js processes in debug mode',
-		);
+		statusItem.tooltip = localize('status.tooltip.auto.attach', "Automatically attach to node.js processes in debug mode");
 		context.subscriptions.push(statusItem);
 	}
 

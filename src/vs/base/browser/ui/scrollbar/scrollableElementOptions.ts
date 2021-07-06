@@ -41,6 +41,11 @@ export interface ScrollableElementCreationOptions {
 	 */
 	scrollYToX?: boolean;
 	/**
+	 * Consume all mouse wheel events if a scrollbar is needed (i.e. scrollSize > size).
+	 * Defaults to false.
+	 */
+	consumeMouseWheelIfScrollbarIsNeeded?: boolean;
+	/**
 	 * Always consume mouse wheel events, even when scrolling is no longer possible.
 	 * Defaults to false.
 	 */
@@ -126,7 +131,11 @@ export interface ScrollableElementChangeOptions {
 	mouseWheelScrollSensitivity?: number;
 	fastScrollSensitivity?: number;
 	scrollPredominantAxis?: boolean;
+	horizontal?: ScrollbarVisibility;
 	horizontalScrollbarSize?: number;
+	vertical?: ScrollbarVisibility;
+	verticalScrollbarSize?: number;
+	scrollByPage?: boolean;
 }
 
 export interface ScrollableElementResolvedOptions {
@@ -136,6 +145,7 @@ export interface ScrollableElementResolvedOptions {
 	handleMouseWheel: boolean;
 	flipAxes: boolean;
 	scrollYToX: boolean;
+	consumeMouseWheelIfScrollbarIsNeeded: boolean;
 	alwaysConsumeMouseWheel: boolean;
 	mouseWheelScrollSensitivity: number;
 	fastScrollSensitivity: number;

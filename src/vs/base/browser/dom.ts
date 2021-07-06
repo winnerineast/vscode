@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from 'vs/base/browser/browser';
-import { domEvent } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TimeoutTimer } from 'vs/base/common/async';
@@ -17,21 +16,19 @@ import { FileAccess, RemoteAuthorities } from 'vs/base/common/network';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { insane, InsaneOptions } from 'vs/base/common/insane/insane';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
-		node.removeChild(node.firstChild);
+		node.firstChild.remove();
 	}
 }
 
+/**
+ * @deprecated Use node.isConnected directly
+ */
 export function isInDOM(node: Node | null): boolean {
-	while (node) {
-		if (node === document.body) {
-			return true;
-		}
-		node = node.parentNode || (node as ShadowRoot).host;
-	}
-	return false;
+	return node?.isConnected ?? false;
 }
 
 class DomListener implements IDisposable {
@@ -287,7 +284,7 @@ export function modify(callback: () => void): IDisposable {
 }
 
 /**
- * Add a throttled listener. `handler` is fired at most every 16ms or with the next animation frame (if browser supports it).
+ * Add a throttled listener. `handler` is fired at most every 8.33333ms or with the next animation frame (if browser supports it).
  */
 export interface IEventMerger<R, E> {
 	(lastEvent: R | null, currentEvent: E): R;
@@ -298,7 +295,7 @@ export interface DOMEvent {
 	stopPropagation(): void;
 }
 
-const MINIMUM_TIME_MS = 16;
+const MINIMUM_TIME_MS = 8;
 const DEFAULT_EVENT_MERGER: IEventMerger<DOMEvent, DOMEvent> = function (lastEvent: DOMEvent | null, currentEvent: DOMEvent) {
 	return currentEvent;
 };
@@ -350,16 +347,7 @@ export function getClientArea(element: HTMLElement): Dimension {
 
 	// If visual view port exits and it's on mobile, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
 	if (platform.isIOS && window.visualViewport) {
-		const width = window.visualViewport.width;
-		const height = window.visualViewport.height - (
-			browser.isStandalone
-				// in PWA mode, the visual viewport always includes the safe-area-inset-bottom (which is for the home indicator)
-				// even when you are using the onscreen monitor, the visual viewport will include the area between system statusbar and the onscreen keyboard
-				// plus the area between onscreen keyboard and the bottom bezel, which is 20px on iOS.
-				? (20 + 4) // + 4px for body margin
-				: 0
-		);
-		return new Dimension(width, height);
+		return new Dimension(window.visualViewport.width, window.visualViewport.height);
 	}
 
 	// Try innerWidth / innerHeight
@@ -450,6 +438,8 @@ export interface IDimension {
 }
 
 export class Dimension implements IDimension {
+
+	static readonly None = new Dimension(0, 0);
 
 	constructor(
 		public readonly width: number,
@@ -842,7 +832,7 @@ export const EventType = {
 	MOUSE_OUT: 'mouseout',
 	MOUSE_ENTER: 'mouseenter',
 	MOUSE_LEAVE: 'mouseleave',
-	MOUSE_WHEEL: browser.isEdge ? 'mousewheel' : 'wheel',
+	MOUSE_WHEEL: 'wheel',
 	POINTER_UP: 'pointerup',
 	POINTER_DOWN: 'pointerdown',
 	POINTER_MOVE: 'pointermove',
@@ -984,8 +974,8 @@ class FocusTracker extends Disposable implements IFocusTracker {
 			}
 		};
 
-		this._register(domEvent(element, EventType.FOCUS, true)(onFocus));
-		this._register(domEvent(element, EventType.BLUR, true)(onBlur));
+		this._register(addDisposableListener(element, EventType.FOCUS, onFocus, true));
+		this._register(addDisposableListener(element, EventType.BLUR, onBlur, true));
 	}
 
 	refreshState() {
@@ -1002,9 +992,13 @@ export function after<T extends Node>(sibling: HTMLElement, child: T): T {
 	return child;
 }
 
-export function append<T extends Node>(parent: HTMLElement, ...children: T[]): T {
-	children.forEach(child => parent.appendChild(child));
-	return children[children.length - 1];
+export function append<T extends Node>(parent: HTMLElement, child: T): T;
+export function append<T extends Node>(parent: HTMLElement, ...children: (T | string)[]): void;
+export function append<T extends Node>(parent: HTMLElement, ...children: (T | string)[]): T | void {
+	parent.append(...children);
+	if (children.length === 1 && typeof children[0] !== 'string') {
+		return <T>children[0];
+	}
 }
 
 export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
@@ -1012,26 +1006,12 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
 	return child;
 }
 
-
 /**
  * Removes all children from `parent` and appends `children`
  */
 export function reset(parent: HTMLElement, ...children: Array<Node | string>): void {
 	parent.innerText = '';
-	appendChildren(parent, ...children);
-}
-
-/**
- * Appends `children` to `parent`
- */
-export function appendChildren(parent: HTMLElement, ...children: Array<Node | string>): void {
-	for (const child of children) {
-		if (child instanceof Node) {
-			parent.appendChild(child);
-		} else if (typeof child === 'string') {
-			parent.appendChild(document.createTextNode(child));
-		}
-	}
+	append(parent, ...children);
 }
 
 const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((\.([\w\-]+))*)/;
@@ -1085,13 +1065,7 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 		}
 	});
 
-	for (const child of children) {
-		if (child instanceof Node) {
-			result.appendChild(child);
-		} else if (typeof child === 'string') {
-			result.appendChild(document.createTextNode(child));
-		}
-	}
+	result.append(...children);
 
 	return result as T;
 }
@@ -1204,6 +1178,10 @@ export function computeScreenAwareSize(cssPx: number): number {
 }
 
 /**
+ * Open safely a new window. This is the best way to do so, but you cannot tell
+ * if the window was opened or if it was blocked by the brower's popup blocker.
+ * If you want to tell if the browser blocked the new window, use `windowOpenNoOpenerWithSuccess`.
+ *
  * See https://github.com/microsoft/monaco-editor/issues/601
  * To protect against malicious code in the linked site, particularly phishing attempts,
  * the window.opener should be set to null to prevent the linked site from having access
@@ -1211,17 +1189,33 @@ export function computeScreenAwareSize(cssPx: number): number {
  * See https://mathiasbynens.github.io/rel-noopener/
  */
 export function windowOpenNoOpener(url: string): void {
-	if (platform.isNative || browser.isEdgeWebView) {
-		// In VSCode, window.open() always returns null...
-		// The same is true for a WebView (see https://github.com/microsoft/monaco-editor/issues/628)
-		window.open(url);
-	} else {
-		let newTab = window.open();
-		if (newTab) {
-			(newTab as any).opener = null;
-			newTab.location.href = url;
-		}
+	// By using 'noopener' in the `windowFeatures` argument, the newly created window will
+	// not be able to use `window.opener` to reach back to the current page.
+	// See https://stackoverflow.com/a/46958731
+	// See https://developer.mozilla.org/en-US/docs/Web/API/Window/open#noopener
+	// However, this also doesn't allow us to realize if the browser blocked
+	// the creation of the window.
+	window.open(url, '_blank', 'noopener');
+}
+
+/**
+ * Open safely a new window. This technique is not appropiate in certain contexts,
+ * like for example when the JS context is executing inside a sandboxed iframe.
+ * If it is not necessary to know if the browser blocked the new window, use
+ * `windowOpenNoOpener`.
+ *
+ * See https://github.com/microsoft/monaco-editor/issues/601
+ * See https://github.com/microsoft/monaco-editor/issues/2474
+ * See https://mathiasbynens.github.io/rel-noopener/
+ */
+export function windowOpenNoOpenerWithSuccess(url: string): boolean {
+	const newTab = window.open();
+	if (newTab) {
+		(newTab as any).opener = null;
+		newTab.location.href = url;
+		return true;
 	}
+	return false;
 }
 
 export function animate(fn: () => void): IDisposable {
@@ -1246,10 +1240,14 @@ export function asCSSUrl(uri: URI): string {
 	return `url('${FileAccess.asBrowserUri(uri).toString(true).replace(/'/g, '%27')}')`;
 }
 
+export function asCSSPropertyValue(value: string) {
+	return `'${value.replace(/'/g, '%27')}'`;
+}
+
 export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void {
 
 	// If the data is provided as Buffer, we create a
-	// blog URL out of it to produce a valid link
+	// blob URL out of it to produce a valid link
 	let url: string;
 	if (URI.isUri(dataOrUri)) {
 		url = dataOrUri.toString(true);
@@ -1275,6 +1273,29 @@ export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void
 	setTimeout(() => document.body.removeChild(anchor));
 }
 
+export function triggerUpload(): Promise<FileList | undefined> {
+	return new Promise<FileList | undefined>(resolve => {
+
+		// In order to upload to the browser, create a
+		// input element of type `file` and click it
+		// to gather the selected files
+		const input = document.createElement('input');
+		document.body.appendChild(input);
+		input.type = 'file';
+		input.multiple = true;
+
+		// Resolve once the input event has fired once
+		Event.once(Event.fromDOMEventEmitter(input, 'input'))(() => {
+			resolve(withNullAsUndefined(input.files));
+		});
+
+		input.click();
+
+		// Ensure to remove the element from DOM eventually
+		setTimeout(() => document.body.removeChild(input));
+	});
+}
+
 export enum DetectedFullscreenMode {
 
 	/**
@@ -1298,7 +1319,7 @@ export interface IDetectedFullscreen {
 	mode: DetectedFullscreenMode;
 
 	/**
-	 * Wether we know for sure that we are in fullscreen mode or
+	 * Whether we know for sure that we are in fullscreen mode or
 	 * it is a guess.
 	 */
 	guess: boolean;
@@ -1385,7 +1406,7 @@ export function safeInnerHtml(node: HTMLElement, value: string): void {
 	}, ['class', 'id', 'role', 'tabindex']);
 
 	const html = _ttpSafeInnerHtml?.createHTML(value, options) ?? insane(value, options);
-	node.innerHTML = html as unknown as string;
+	node.innerHTML = html as string;
 }
 
 /**
@@ -1398,7 +1419,12 @@ function toBinary(str: string): string {
 	for (let i = 0; i < codeUnits.length; i++) {
 		codeUnits[i] = str.charCodeAt(i);
 	}
-	return String.fromCharCode(...new Uint8Array(codeUnits.buffer));
+	let binary = '';
+	const uint8array = new Uint8Array(codeUnits.buffer);
+	for (let i = 0; i < uint8array.length; i++) {
+		binary += String.fromCharCode(uint8array[i]);
+	}
+	return binary;
 }
 
 /**
@@ -1416,37 +1442,8 @@ export function multibyteAwareBtoa(str: string): string {
  */
 export namespace WebFileSystemAccess {
 
-	// https://wicg.github.io/file-system-access/#dom-window-showdirectorypicker
-	export interface FileSystemAccess {
-		showDirectoryPicker: () => Promise<FileSystemDirectoryHandle>;
-	}
-
-	// https://wicg.github.io/file-system-access/#api-filesystemdirectoryhandle
-	export interface FileSystemDirectoryHandle {
-		readonly kind: 'directory',
-		readonly name: string,
-
-		getFileHandle: (name: string, options?: { create?: boolean }) => Promise<FileSystemFileHandle>;
-		getDirectoryHandle: (name: string, options?: { create?: boolean }) => Promise<FileSystemDirectoryHandle>;
-	}
-
-	// https://wicg.github.io/file-system-access/#api-filesystemfilehandle
-	export interface FileSystemFileHandle {
-		readonly kind: 'file',
-		readonly name: string,
-
-		createWritable: (options?: { keepExistingData?: boolean }) => Promise<FileSystemWritableFileStream>;
-	}
-
-	// https://wicg.github.io/file-system-access/#api-filesystemwritablefilestream
-	export interface FileSystemWritableFileStream {
-		write: (buffer: Uint8Array) => Promise<void>;
-		close: () => Promise<void>;
-	}
-
-	export function supported(obj: any & Window): obj is FileSystemAccess {
-		const candidate = obj as FileSystemAccess;
-		if (typeof candidate?.showDirectoryPicker === 'function') {
+	export function supported(obj: any & Window): boolean {
+		if (typeof obj?.showDirectoryPicker === 'function') {
 			return true;
 		}
 
@@ -1482,8 +1479,17 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			metaKey: false
 		};
 
-		this._subscriptions.add(domEvent(document.body, 'keydown', true)(e => {
+		this._subscriptions.add(addDisposableListener(window, 'keydown', e => {
+			if (e.defaultPrevented) {
+				return;
+			}
+
 			const event = new StandardKeyboardEvent(e);
+			// If Alt-key keydown event is repeated, ignore it #112347
+			// Only known to be necessary for Alt-Key at the moment #115810
+			if (event.keyCode === KeyCode.Alt && e.repeat) {
+				return;
+			}
 
 			if (e.altKey && !this._keyStatus.altKey) {
 				this._keyStatus.lastKeyPressed = 'alt';
@@ -1508,9 +1514,13 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 				this._keyStatus.event = e;
 				this.fire(this._keyStatus);
 			}
-		}));
+		}, true));
 
-		this._subscriptions.add(domEvent(document.body, 'keyup', true)(e => {
+		this._subscriptions.add(addDisposableListener(window, 'keyup', e => {
+			if (e.defaultPrevented) {
+				return;
+			}
+
 			if (!e.altKey && this._keyStatus.altKey) {
 				this._keyStatus.lastKeyReleased = 'alt';
 			} else if (!e.ctrlKey && this._keyStatus.ctrlKey) {
@@ -1536,23 +1546,23 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 				this._keyStatus.event = e;
 				this.fire(this._keyStatus);
 			}
-		}));
+		}, true));
 
-		this._subscriptions.add(domEvent(document.body, 'mousedown', true)(e => {
+		this._subscriptions.add(addDisposableListener(document.body, 'mousedown', () => {
 			this._keyStatus.lastKeyPressed = undefined;
-		}));
+		}, true));
 
-		this._subscriptions.add(domEvent(document.body, 'mouseup', true)(e => {
+		this._subscriptions.add(addDisposableListener(document.body, 'mouseup', () => {
 			this._keyStatus.lastKeyPressed = undefined;
-		}));
+		}, true));
 
-		this._subscriptions.add(domEvent(document.body, 'mousemove', true)(e => {
+		this._subscriptions.add(addDisposableListener(document.body, 'mousemove', e => {
 			if (e.buttons) {
 				this._keyStatus.lastKeyPressed = undefined;
 			}
-		}));
+		}, true));
 
-		this._subscriptions.add(domEvent(window, 'blur')(e => {
+		this._subscriptions.add(addDisposableListener(window, 'blur', () => {
 			this.resetKeyStatus();
 		}));
 	}
@@ -1590,8 +1600,24 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 		return ModifierKeyEmitter.instance;
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 		this._subscriptions.dispose();
+	}
+}
+
+export function getCookieValue(name: string): string | undefined {
+	const match = document.cookie.match('(^|[^;]+)\\s*' + name + '\\s*=\\s*([^;]+)'); // See https://stackoverflow.com/a/25490531
+
+	return match ? match.pop() : undefined;
+}
+
+export function addMatchMediaChangeListener(query: string, callback: () => void): void {
+	const mediaQueryList = window.matchMedia(query);
+	if (typeof mediaQueryList.addEventListener === 'function') {
+		mediaQueryList.addEventListener('change', callback);
+	} else {
+		// Safari 13.x
+		mediaQueryList.addListener(callback);
 	}
 }

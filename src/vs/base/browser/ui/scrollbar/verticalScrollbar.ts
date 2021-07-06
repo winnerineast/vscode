@@ -38,8 +38,8 @@ export class VerticalScrollbar extends AbstractScrollbar {
 		});
 
 		if (options.verticalHasArrows) {
-			let arrowDelta = (options.arrowSize - ARROW_IMG_SIZE) / 2;
-			let scrollbarDelta = (options.verticalScrollbarSize - ARROW_IMG_SIZE) / 2;
+			const arrowDelta = (options.arrowSize - ARROW_IMG_SIZE) / 2;
+			const scrollbarDelta = (options.verticalScrollbarSize - ARROW_IMG_SIZE) / 2;
 
 			this._createArrow({
 				className: 'scra',
@@ -107,4 +107,13 @@ export class VerticalScrollbar extends AbstractScrollbar {
 	public writeScrollPosition(target: INewScrollPosition, scrollPosition: number): void {
 		target.scrollTop = scrollPosition;
 	}
+
+	public updateOptions(options: ScrollableElementResolvedOptions): void {
+		this.updateScrollbarSize(options.vertical === ScrollbarVisibility.Hidden ? 0 : options.verticalScrollbarSize);
+		// give priority to vertical scroll bar over horizontal and let it scroll all the way to the bottom
+		this._scrollbarState.setOppositeScrollbarSize(0);
+		this._visibilityController.setVisibility(options.vertical);
+		this._scrollByPage = options.scrollByPage;
+	}
+
 }

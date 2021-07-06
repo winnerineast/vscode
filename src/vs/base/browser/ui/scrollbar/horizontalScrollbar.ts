@@ -38,8 +38,8 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 		});
 
 		if (options.horizontalHasArrows) {
-			let arrowDelta = (options.arrowSize - ARROW_IMG_SIZE) / 2;
-			let scrollbarDelta = (options.horizontalScrollbarSize - ARROW_IMG_SIZE) / 2;
+			const arrowDelta = (options.arrowSize - ARROW_IMG_SIZE) / 2;
+			const scrollbarDelta = (options.horizontalScrollbarSize - ARROW_IMG_SIZE) / 2;
 
 			this._createArrow({
 				className: 'scra',
@@ -106,5 +106,12 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 
 	public writeScrollPosition(target: INewScrollPosition, scrollPosition: number): void {
 		target.scrollLeft = scrollPosition;
+	}
+
+	public updateOptions(options: ScrollableElementResolvedOptions): void {
+		this.updateScrollbarSize(options.horizontal === ScrollbarVisibility.Hidden ? 0 : options.horizontalScrollbarSize);
+		this._scrollbarState.setOppositeScrollbarSize(options.vertical === ScrollbarVisibility.Hidden ? 0 : options.verticalScrollbarSize);
+		this._visibilityController.setVisibility(options.horizontal);
+		this._scrollByPage = options.scrollByPage;
 	}
 }

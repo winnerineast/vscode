@@ -10,10 +10,14 @@ import { isMessageOfType, MessageType, createMessageOfType } from 'vs/workbench/
 import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtensionHostMain } from 'vs/workbench/services/extensions/common/extensionHostMain';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
+import { NestedWorker } from 'vs/workbench/services/extensions/worker/polyfillNestedWorker';
 import * as path from 'vs/base/common/path';
+import * as performance from 'vs/base/common/performance';
 
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/worker/extHost.worker.services';
+import { FileAccess } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
 
 //#region --- Define, capture, and override some globals
 
@@ -23,6 +27,8 @@ declare namespace self {
 	let close: any;
 	let postMessage: any;
 	let addEventListener: any;
+	let removeEventListener: any;
+	let dispatchEvent: any;
 	let indexedDB: { open: any, [k: string]: any };
 	let caches: { open: any, [k: string]: any };
 }
@@ -46,13 +52,32 @@ self.addEventListener = () => console.trace(`'addEventListener' has been blocked
 (<any>self)['webkitResolveLocalFileSystemURL'] = undefined;
 
 if ((<any>self).Worker) {
-	// make sure new Worker(...) always uses data:
+	const ttPolicy = (<any>self).trustedTypes?.createPolicy('extensionHostWorker', { createScriptURL: (value: string) => value });
+
+	// make sure new Worker(...) always uses blob: (to maintain current origin)
 	const _Worker = (<any>self).Worker;
 	Worker = <any>function (stringUrl: string | URL, options?: WorkerOptions) {
-		const js = `importScripts('${stringUrl}');`;
+		if (/^file:/i.test(stringUrl.toString())) {
+			stringUrl = FileAccess.asBrowserUri(URI.parse(stringUrl.toString())).toString(true);
+		}
+		const js = `(function() {
+	const ttPolicy = self.trustedTypes ? self.trustedTypes.createPolicy('extensionHostWorker', { createScriptURL: (value) => value }) : undefined;
+	const stringUrl = '${stringUrl}';
+	importScripts(ttPolicy ? ttPolicy.createScriptURL(stringUrl) : stringUrl);
+})();
+`;
 		options = options || {};
 		options.name = options.name || path.basename(stringUrl.toString());
-		return new _Worker(`data:text/javascript;charset=utf-8,${encodeURIComponent(js)}`, options);
+		const blob = new Blob([js], { type: 'application/javascript' });
+		const blobUrl = URL.createObjectURL(blob);
+		return new _Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) : blobUrl, options);
+	};
+
+} else {
+	(<any>self).Worker = class extends NestedWorker {
+		constructor(stringOrUrl: string | URL, options?: WorkerOptions) {
+			super(nativePostMessage, stringOrUrl, { name: path.basename(stringOrUrl.toString()), ...options });
+		}
 	};
 }
 
@@ -97,7 +122,7 @@ class ExtensionWorker {
 			if (isMessageOfType(msg, MessageType.Terminate)) {
 				// handle terminate-message right here
 				terminating = true;
-				onTerminate();
+				onTerminate('received terminate message from renderer');
 				return;
 			}
 
@@ -133,13 +158,13 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 	});
 }
 
-let onTerminate = nativeClose;
+let onTerminate = (reason: string) => nativeClose();
 
-(function create(): void {
+export function create(): void {
 	const res = new ExtensionWorker();
-
+	performance.mark(`code/extHost/willConnectToRenderer`);
 	connectToRenderer(res.protocol).then(data => {
-
+		performance.mark(`code/extHost/didWaitForInitData`);
 		const extHostMain = new ExtensionHostMain(
 			data.protocol,
 			data.initData,
@@ -147,6 +172,6 @@ let onTerminate = nativeClose;
 			null,
 		);
 
-		onTerminate = () => extHostMain.terminate();
+		onTerminate = (reason: string) => extHostMain.terminate(reason);
 	});
-})();
+}

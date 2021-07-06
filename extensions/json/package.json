@@ -57,6 +57,8 @@
           ".babelrc"
         ],
         "filenames": [
+          "babel.config.json",
+          ".babelrc.json",
           ".ember-cli"
         ],
         "configuration": "./language-configuration.json"
@@ -74,5 +76,9 @@
         "path": "./syntaxes/JSONC.tmLanguage.json"
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

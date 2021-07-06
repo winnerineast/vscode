@@ -15,12 +15,12 @@ import { cloneAndChange } from 'vs/base/common/objects';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { markdownEscapeEscapedCodicons } from 'vs/base/common/codicons';
+import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
 import { resolvePath } from 'vs/base/common/resources';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { renderCodicons } from 'vs/base/browser/codicons';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Event } from 'vs/base/common/event';
-import { domEvent } from 'vs/base/browser/event';
+import { DomEmitter } from 'vs/base/browser/event';
 
 export interface MarkedOptions extends marked.MarkedOptions {
 	baseUrl?: never;
@@ -156,7 +156,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	};
 	renderer.paragraph = (text): string => {
 		if (markdown.supportThemeIcons) {
-			const elements = renderCodicons(text);
+			const elements = renderLabelWithIcons(text);
 			text = elements.map(e => typeof e === 'string' ? e : e.outerHTML).join('');
 		}
 		return `<p>${text}</p>`;
@@ -186,7 +186,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	}
 
 	if (options.actionHandler) {
-		options.actionHandler.disposeables.add(Event.any<MouseEvent>(domEvent(element, 'click'), domEvent(element, 'auxclick'))(e => {
+		const onClick = options.actionHandler.disposeables.add(new DomEmitter(element, 'click'));
+		const onAuxClick = options.actionHandler.disposeables.add(new DomEmitter(element, 'auxclick'));
+		options.actionHandler.disposeables.add(Event.any(onClick.event, onAuxClick.event)(e => {
 			const mouseEvent = new StandardMouseEvent(e);
 			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
 				return;
@@ -218,7 +220,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	// We always pass the output through insane after this so that we don't rely on
 	// marked for sanitization.
 	markedOptions.sanitizer = (html: string): string => {
-		const match = markdown.isTrusted ? html.match(/^(<span[^<]+>)|(<\/\s*span>)$/) : undefined;
+		const match = markdown.isTrusted ? html.match(/^(<span[^>]+>)|(<\/\s*span>)$/) : undefined;
 		return match ? html : '';
 	};
 	markedOptions.sanitize = true;
@@ -233,13 +235,13 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	}
 	// escape theme icons
 	if (markdown.supportThemeIcons) {
-		value = markdownEscapeEscapedCodicons(value);
+		value = markdownEscapeEscapedIcons(value);
 	}
 
 	const renderedMarkdown = marked.parse(value, markedOptions);
 
 	// sanitize with insane
-	element.innerHTML = sanitizeRenderedMarkdown(markdown, renderedMarkdown);
+	element.innerHTML = sanitizeRenderedMarkdown(markdown, renderedMarkdown) as string;
 
 	// signal that async code blocks can be now be inserted
 	signalInnerHTML!();
@@ -261,13 +263,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 function sanitizeRenderedMarkdown(
 	options: { isTrusted?: boolean },
 	renderedMarkdown: string,
-): string {
+): string | TrustedHTML {
 	const insaneOptions = getInsaneOptions(options);
-	if (_ttpInsane) {
-		return _ttpInsane.createHTML(renderedMarkdown, insaneOptions) as unknown as string;
-	} else {
-		return insane(renderedMarkdown, insaneOptions);
-	}
+	return _ttpInsane?.createHTML(renderedMarkdown, insaneOptions) ?? insane(renderedMarkdown, insaneOptions);
 }
 
 function getInsaneOptions(options: { readonly isTrusted?: boolean }): InsaneOptions {
@@ -302,18 +300,26 @@ function getInsaneOptions(options: { readonly isTrusted?: boolean }): InsaneOpti
 			'td': ['align']
 		},
 		filter(token: { tag: string; attrs: { readonly [key: string]: string; }; }): boolean {
-			if (token.tag === 'span' && options.isTrusted && (Object.keys(token.attrs).length === 1)) {
-				if (token.attrs['style']) {
+			if (token.tag === 'span' && options.isTrusted) {
+				if (token.attrs['style'] && (Object.keys(token.attrs).length === 1)) {
 					return !!token.attrs['style'].match(/^(color\:#[0-9a-fA-F]+;)?(background-color\:#[0-9a-fA-F]+;)?$/);
 				} else if (token.attrs['class']) {
 					// The class should match codicon rendering in src\vs\base\common\codicons.ts
-					return !!token.attrs['class'].match(/^codicon codicon-[a-z\-]+( codicon-animation-[a-z\-]+)?$/);
+					return !!token.attrs['class'].match(/^codicon codicon-[a-z\-]+( codicon-modifier-[a-z\-]+)?$/);
 				}
 				return false;
 			}
 			return true;
 		}
 	};
+}
+
+/**
+ * Strips all markdown from `string`, if it's an IMarkdownString. For example
+ * `# Header` would be output as `Header`. If it's not, the string is returned.
+ */
+export function renderStringAsPlaintext(string: IMarkdownString | string) {
+	return typeof string === 'string' ? string : renderMarkdownAsPlaintext(string);
 }
 
 /**
@@ -387,5 +393,17 @@ export function renderMarkdownAsPlaintext(markdown: IMarkdownString) {
 	if (value.length > 100_000) {
 		value = `${value.substr(0, 100_000)}…`;
 	}
-	return sanitizeRenderedMarkdown({ isTrusted: false }, marked.parse(value, { renderer })).toString();
+
+	const unescapeInfo = new Map<string, string>([
+		['&quot;', '"'],
+		['&nbsp;', ' '],
+		['&amp;', '&'],
+		['&#39;', '\''],
+		['&lt;', '<'],
+		['&gt;', '>'],
+	]);
+
+	const html = marked.parse(value, { renderer }).replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
+
+	return sanitizeRenderedMarkdown({ isTrusted: false }, html).toString();
 }

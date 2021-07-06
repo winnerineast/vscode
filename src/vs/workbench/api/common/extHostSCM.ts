@@ -18,6 +18,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { MarshalledId } from 'vs/base/common/marshalling';
 
 type ProviderHandle = number;
 type GroupHandle = number;
@@ -257,6 +258,22 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 
 	constructor(private _extension: IExtensionDescription, private _proxy: MainThreadSCMShape, private _sourceControlHandle: number) {
 		// noop
+	}
+
+	focus(): void {
+		checkProposedApiEnabled(this._extension);
+
+		if (!this._visible) {
+			this.visible = true;
+		}
+
+		this._proxy.$setInputBoxFocus(this._sourceControlHandle);
+	}
+
+	showValidationMessage(message: string, type: vscode.SourceControlInputBoxValidationType) {
+		checkProposedApiEnabled(this._extension);
+
+		this._proxy.$showValidationMessage(this._sourceControlHandle, message, type as any);
 	}
 
 	$onInputBoxValueChange(value: string): void {
@@ -644,7 +661,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 
 		_commands.registerArgumentProcessor({
 			processArgument: arg => {
-				if (arg && arg.$mid === 3) {
+				if (arg && arg.$mid === MarshalledId.ScmResource) {
 					const sourceControl = this._sourceControls.get(arg.sourceControlHandle);
 
 					if (!sourceControl) {
@@ -658,7 +675,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 					}
 
 					return group.getResourceState(arg.handle);
-				} else if (arg && arg.$mid === 4) {
+				} else if (arg && arg.$mid === MarshalledId.ScmResourceGroup) {
 					const sourceControl = this._sourceControls.get(arg.sourceControlHandle);
 
 					if (!sourceControl) {
@@ -666,7 +683,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 					}
 
 					return sourceControl.getResourceGroup(arg.groupHandle);
-				} else if (arg && arg.$mid === 5) {
+				} else if (arg && arg.$mid === MarshalledId.ScmProvider) {
 					const sourceControl = this._sourceControls.get(arg.handle);
 
 					if (!sourceControl) {

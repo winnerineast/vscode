@@ -150,7 +150,7 @@ export interface OnEnterRule {
 	/**
 	 * This rule will only execute if the text above the this line matches this regular expression.
 	 */
-	oneLineAboveText?: RegExp;
+	previousLineText?: RegExp;
 	/**
 	 * The action to execute.
 	 */
@@ -254,7 +254,7 @@ export interface CompleteEnterAction {
  * @internal
  */
 export class StandardAutoClosingPairConditional {
-	_standardAutoClosingPairConditionalBrand: void;
+	_standardAutoClosingPairConditionalBrand: void = undefined;
 
 	readonly open: string;
 	readonly close: string;

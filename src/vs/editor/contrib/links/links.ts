@@ -57,7 +57,7 @@ function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 				nativeLabel = ` "${nativeLabelText}"`;
 			}
 		}
-		const hoverMessage = new MarkdownString('', true).appendMarkdown(`[${label}](${link.url.toString()}${nativeLabel}) (${kb})`);
+		const hoverMessage = new MarkdownString('', true).appendMarkdown(`[${label}](${link.url.toString(true)}${nativeLabel}) (${kb})`);
 		return hoverMessage;
 	} else {
 		return new MarkdownString().appendText(`${label} (${kb})`);
@@ -66,11 +66,13 @@ function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 
 const decoration = {
 	general: ModelDecorationOptions.register({
+		description: 'detected-link',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link'
 	}),
 	active: ModelDecorationOptions.register({
+		description: 'detected-link-active',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link-active'
@@ -327,7 +329,7 @@ export class LinkDetector implements IEditorContribution {
 				}
 			}
 
-			return this.openerService.open(uri, { openToSide, fromUserGesture });
+			return this.openerService.open(uri, { openToSide, fromUserGesture, allowContributedOpeners: true, allowCommands: true });
 
 		}, err => {
 			const messageOrError =

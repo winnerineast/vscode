@@ -20,13 +20,13 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 	protected readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
 	readonly onWillShutdown = this._onWillShutdown.event;
 
-	protected readonly _onShutdown = this._register(new Emitter<void>());
-	readonly onShutdown = this._onShutdown.event;
+	protected readonly _onDidShutdown = this._register(new Emitter<void>());
+	readonly onDidShutdown = this._onDidShutdown.event;
 
-	protected _startupKind: StartupKind = StartupKind.NewWindow;
+	protected _startupKind = StartupKind.NewWindow;
 	get startupKind(): StartupKind { return this._startupKind; }
 
-	private _phase: LifecyclePhase = LifecyclePhase.Starting;
+	private _phase = LifecyclePhase.Starting;
 	get phase(): LifecyclePhase { return this._phase; }
 
 	private readonly phaseWhen = new Map<LifecyclePhase, Barrier>();
@@ -49,7 +49,7 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 		this.logService.trace(`lifecycle: phase changed (value: ${value})`);
 
 		this._phase = value;
-		mark(`LifecyclePhase/${LifecyclePhaseToString(value)}`);
+		mark(`code/LifecyclePhase/${LifecyclePhaseToString(value)}`);
 
 		const barrier = this.phaseWhen.get(this._phase);
 		if (barrier) {

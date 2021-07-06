@@ -4,125 +4,202 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { groupBy } from 'vs/base/common/arrays';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isDefined } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
-import { AbstractIncrementalTestCollection, collectTestResults, getTestSubscriptionKey, IncrementalTestCollectionItem, InternalTestItem, RunTestsRequest, RunTestsResult, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestService, MainTestController, TestDiffListener } from 'vs/workbench/contrib/testing/common/testService';
+import { Iterable } from 'vs/base/common/iterator';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
+import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
+import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
+import { RunTestsRequest, ITestIdWithSrc, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
+import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
+import { ITestService, MainTestController } from 'vs/workbench/contrib/testing/common/testService';
 
 export class TestService extends Disposable implements ITestService {
 	declare readonly _serviceBrand: undefined;
 	private testControllers = new Map<string, MainTestController>();
-	private readonly testSubscriptions = new Map<string, {
-		collection: MainThreadTestCollection;
-		onDiff: Emitter<TestsDiff>;
-		listeners: number;
-	}>();
-	private readonly subscribeEmitter = new Emitter<{ resource: ExtHostTestingResource, uri: URI }>();
-	private readonly unsubscribeEmitter = new Emitter<{ resource: ExtHostTestingResource, uri: URI }>();
 
+	private readonly cancelExtensionTestRunEmitter = new Emitter<{ runId: string | undefined }>();
+	private readonly processDiffEmitter = new Emitter<TestsDiff>();
+	private readonly providerCount: IContextKey<number>;
+	private readonly hasRunnable: IContextKey<boolean>;
+	private readonly hasDebuggable: IContextKey<boolean>;
 	/**
-	 * Fired when extension hosts should pull events from their test factories.
+	 * Cancellation for runs requested by the user being managed by the UI.
+	 * Test runs initiated by extensions are not included here.
 	 */
-	public readonly onShouldSubscribe = this.subscribeEmitter.event;
-
-	/**
-	 * Fired when extension hosts should stop pulling events from their test factories.
-	 */
-	public readonly onShouldUnsubscribe = this.unsubscribeEmitter.event;
+	private readonly uiRunningTests = new Map<string /* run ID */, CancellationTokenSource>();
 
 	/**
 	 * @inheritdoc
 	 */
-	async runTests(req: RunTestsRequest): Promise<RunTestsResult> {
-		const tests = groupBy(req.tests, (a, b) => a.providerId === b.providerId ? 0 : 1);
-		const requests = tests.map(group => {
-			const providerId = group[0].providerId;
-			const controller = this.testControllers.get(providerId);
-			return controller?.runTests({ providerId, debug: req.debug, ids: group.map(t => t.testId) });
-		}).filter(isDefined);
+	public readonly excludeTests = MutableObservableValue.stored(new StoredValue<ReadonlySet<string>>({
+		key: 'excludedTestItems',
+		scope: StorageScope.WORKSPACE,
+		target: StorageTarget.USER,
+		serialization: {
+			deserialize: v => new Set(JSON.parse(v)),
+			serialize: v => JSON.stringify([...v])
+		},
+	}, this.storageService), new Set());
 
-		return collectTestResults(await Promise.all(requests));
+	/**
+	 * @inheritdoc
+	 */
+	public readonly onDidProcessDiff = this.processDiffEmitter.event;
+
+	/**
+	 * @inheritdoc
+	 */
+	public readonly onDidCancelTestRun = this.cancelExtensionTestRunEmitter.event;
+
+	/**
+	* @inheritdoc
+	 */
+	public readonly collection = new MainThreadTestCollection(this.expandTest.bind(this));
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IStorageService private readonly storageService: IStorageService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ITestResultService private readonly testResults: ITestResultService,
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+	) {
+		super();
+		this.providerCount = TestingContextKeys.providerCount.bindTo(contextKeyService);
+		this.hasDebuggable = TestingContextKeys.hasDebuggableTests.bindTo(contextKeyService);
+		this.hasRunnable = TestingContextKeys.hasRunnableTests.bindTo(contextKeyService);
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	public subscribeToDiffs(resource: ExtHostTestingResource, uri: URI, acceptDiff: TestDiffListener) {
-		const subscriptionKey = getTestSubscriptionKey(resource, uri);
-		let subscription = this.testSubscriptions.get(subscriptionKey);
-		if (!subscription) {
-			subscription = { collection: new MainThreadTestCollection(), listeners: 0, onDiff: new Emitter() };
-			this.subscribeEmitter.fire({ resource, uri });
-			this.testSubscriptions.set(subscriptionKey, subscription);
+	public async expandTest(test: ITestIdWithSrc, levels: number) {
+		await this.testControllers.get(test.controllerId)?.expandTest(test, levels);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public clearExcludedTests() {
+		this.excludeTests.value = new Set();
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public setTestExcluded(testId: string, exclude = !this.excludeTests.value.has(testId)) {
+		const newSet = new Set(this.excludeTests.value);
+		if (exclude) {
+			newSet.add(testId);
+		} else {
+			newSet.delete(testId);
 		}
 
-		subscription.listeners++;
+		if (newSet.size !== this.excludeTests.value.size) {
+			this.excludeTests.value = newSet;
+		}
+	}
 
-		const revive = subscription.collection.getReviverDiff();
-		if (revive.length) {
-			acceptDiff(revive);
+
+	/**
+	 * @inheritdoc
+	 */
+	public cancelTestRun(runId?: string) {
+		this.cancelExtensionTestRunEmitter.fire({ runId });
+
+		if (runId === undefined) {
+			for (const runCts of this.uiRunningTests.values()) {
+				runCts.cancel();
+			}
+		} else {
+			this.uiRunningTests.get(runId)?.cancel();
+		}
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public async runTests(req: RunTestsRequest, token = CancellationToken.None): Promise<ITestResult> {
+		if (!req.exclude) {
+			req.exclude = [...this.excludeTests.value];
 		}
 
-		const listener = subscription.onDiff.event(acceptDiff);
+		const result = this.testResults.createLiveResult(req);
+		const trust = await this.workspaceTrustRequestService.requestWorkspaceTrust({
+			message: localize('testTrust', "Running tests may execute code in your workspace."),
+		});
+
+		if (!trust) {
+			result.markComplete();
+			return result;
+		}
+
+		try {
+			const tests = groupBy(req.tests, (a, b) => a.controllerId === b.controllerId ? 0 : 1);
+			const cancelSource = new CancellationTokenSource(token);
+			this.uiRunningTests.set(result.id, cancelSource);
+
+			const requests = tests.map(
+				group => this.testControllers.get(group[0].controllerId)?.runTests(
+					{
+						runId: result.id,
+						debug: req.debug,
+						excludeExtIds: req.exclude ?? [],
+						testIds: group.map(g => g.testId),
+						controllerId: group[0].controllerId,
+					},
+					cancelSource.token,
+				).catch(err => {
+					this.notificationService.error(localize('testError', 'An error occurred attempting to run tests: {0}', err.message));
+				})
+			);
+
+			await Promise.all(requests);
+			return result;
+		} finally {
+			this.uiRunningTests.delete(result.id);
+			result.markComplete();
+		}
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public resubscribeToAllTests() {
+		// todo
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public publishDiff(_controllerId: string, diff: TestsDiff) {
+		this.collection.apply(diff);
+		this.hasDebuggable.set(Iterable.some(this.collection.all, t => t.item.debuggable));
+		this.hasRunnable.set(Iterable.some(this.collection.all, t => t.item.runnable));
+		this.processDiffEmitter.fire(diff);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public registerTestController(id: string, controller: MainTestController): IDisposable {
+		this.testControllers.set(id, controller);
+		this.providerCount.set(this.testControllers.size);
+
 		return toDisposable(() => {
-			listener.dispose();
-
-			if (!--subscription!.listeners) {
-				this.unsubscribeEmitter.fire({ resource, uri });
-				this.testSubscriptions.delete(subscriptionKey);
+			if (this.testControllers.delete(id)) {
+				this.providerCount.set(this.testControllers.size);
 			}
 		});
 	}
-
-	/**
-	 * @inheritdoc
-	 */
-	public publishDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff) {
-		const sub = this.testSubscriptions.get(getTestSubscriptionKey(resource, URI.revive(uri)));
-		if (sub) {
-			sub.collection.apply(diff);
-			sub.onDiff.fire(diff);
-		}
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	public registerTestController(id: string, controller: MainTestController): void {
-		this.testControllers.set(id, controller);
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	public unregisterTestController(id: string): void {
-		this.testControllers.delete(id);
-	}
 }
 
-class MainThreadTestCollection extends AbstractIncrementalTestCollection<IncrementalTestCollectionItem> {
-	/**
-	 * Gets a diff that adds all items currently in the tree to a new collection,
-	 * allowing it to fully hydrate.
-	 */
-	public getReviverDiff() {
-		const ops: TestsDiff = [];
-		const queue = [this.roots];
-		while (queue.length) {
-			for (const child of queue.pop()!) {
-				const item = this.items.get(child)!;
-				ops.push([TestDiffOpType.Add, { id: item.id, providerId: item.providerId, item: item.item, parent: item.parent }]);
-				queue.push(item.children);
-			}
-		}
 
-		return ops;
-	}
-
-	protected createItem(internal: InternalTestItem): IncrementalTestCollectionItem {
-		return { ...internal, children: new Set() };
-	}
-}

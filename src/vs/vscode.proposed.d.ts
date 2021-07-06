@@ -9,108 +9,31 @@
  * distribution and CANNOT be used in published extensions.
  *
  * To test these API in local environment:
- * - Use Insiders release of VS Code.
+ * - Use Insiders release of 'VS Code'.
  * - Add `"enableProposedApi": true` to your package.json.
  * - Copy this file to your project.
  */
 
 declare module 'vscode' {
 
-	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
+	//#region auth provider: https://github.com/microsoft/vscode/issues/88309
 
 	/**
-	 * An [event](#Event) which fires when an [AuthenticationProvider](#AuthenticationProvider) is added or removed.
+	 * An {@link Event} which fires when an {@link AuthenticationProvider} is added or removed.
 	 */
 	export interface AuthenticationProvidersChangeEvent {
 		/**
-		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been added.
+		 * The ids of the {@link AuthenticationProvider}s that have been added.
 		 */
 		readonly added: ReadonlyArray<AuthenticationProviderInformation>;
 
 		/**
-		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been removed.
+		 * The ids of the {@link AuthenticationProvider}s that have been removed.
 		 */
 		readonly removed: ReadonlyArray<AuthenticationProviderInformation>;
 	}
 
-	/**
-	* An [event](#Event) which fires when an [AuthenticationSession](#AuthenticationSession) is added, removed, or changed.
-	*/
-	export interface AuthenticationProviderAuthenticationSessionsChangeEvent {
-		/**
-		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been added.
-		*/
-		readonly added: ReadonlyArray<string>;
-
-		/**
-		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been removed.
-		 */
-		readonly removed: ReadonlyArray<string>;
-
-		/**
-		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been changed.
-		 */
-		readonly changed: ReadonlyArray<string>;
-	}
-
-	/**
-	 * **WARNING** When writing an AuthenticationProvider, `id` should be treated as part of your extension's
-	 * API, changing it is a breaking change for all extensions relying on the provider. The id is
-	 * treated case-sensitively.
-	 */
-	export interface AuthenticationProvider {
-		/**
-		 * Used as an identifier for extensions trying to work with a particular
-		 * provider: 'microsoft', 'github', etc. id must be unique, registering
-		 * another provider with the same id will fail.
-		 */
-		readonly id: string;
-
-		/**
-		 * The human-readable name of the provider.
-		 */
-		readonly label: string;
-
-		/**
-		 * Whether it is possible to be signed into multiple accounts at once with this provider
-		*/
-		readonly supportsMultipleAccounts: boolean;
-
-		/**
-		 * An [event](#Event) which fires when the array of sessions has changed, or data
-		 * within a session has changed.
-		 */
-		readonly onDidChangeSessions: Event<AuthenticationProviderAuthenticationSessionsChangeEvent>;
-
-		/**
-		 * Returns an array of current sessions.
-		 */
-		getSessions(): Thenable<ReadonlyArray<AuthenticationSession>>;
-
-		/**
-		 * Prompts a user to login.
-		 */
-		login(scopes: string[]): Thenable<AuthenticationSession>;
-
-		/**
-		 * Removes the session corresponding to session id.
-		 * @param sessionId The session id to log out of
-		 */
-		logout(sessionId: string): Thenable<void>;
-	}
-
 	export namespace authentication {
-		/**
-		 * Register an authentication provider.
-		 *
-		 * There can only be one provider per id and an error is being thrown when an id
-		 * has already been used by another provider.
-		 *
-		 * @param provider The authentication provider provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerAuthenticationProvider(provider: AuthenticationProvider): Disposable;
-
 		/**
 		 * @deprecated - getSession should now trigger extension activation.
 		 * Fires with the provider id that was registered or unregistered.
@@ -119,60 +42,31 @@ declare module 'vscode' {
 
 		/**
 		 * @deprecated
-		 * The ids of the currently registered authentication providers.
-		 * @returns An array of the ids of authentication providers that are currently registered.
-		 */
-		export function getProviderIds(): Thenable<ReadonlyArray<string>>;
-
-		/**
-		 * @deprecated
-		 * An array of the ids of authentication providers that are currently registered.
-		 */
-		export const providerIds: ReadonlyArray<string>;
-
-		/**
 		 * An array of the information of authentication providers that are currently registered.
 		 */
 		export const providers: ReadonlyArray<AuthenticationProviderInformation>;
 
 		/**
 		 * @deprecated
-		* Logout of a specific session.
-		* @param providerId The id of the provider to use
-		* @param sessionId The session id to remove
-		* provider
-		*/
+		 * Logout of a specific session.
+		 * @param providerId The id of the provider to use
+		 * @param sessionId The session id to remove
+		 * provider
+		 */
 		export function logout(providerId: string, sessionId: string): Thenable<void>;
-
-		/**
-		 * Retrieve a password that was stored with key. Returns undefined if there
-		 * is no password matching that key.
-		 * @param key The key the password was stored under.
-		 */
-		export function getPassword(key: string): Thenable<string | undefined>;
-
-		/**
-		 * Store a password under a given key.
-		 * @param key The key to store the password under
-		 * @param value The password
-		 */
-		export function setPassword(key: string, value: string): Thenable<void>;
-
-		/**
-		 * Remove a password from storage.
-		 * @param key The key the password was stored under.
-		 */
-		export function deletePassword(key: string): Thenable<void>;
-
-		/**
-		 * Fires when a password is set or deleted.
-		 */
-		export const onDidChangePassword: Event<void>;
 	}
 
 	//#endregion
 
+	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @alexdima - resolvers
+
+	export interface MessageOptions {
+		/**
+		 * Do not render a native message box.
+		 */
+		useCustom?: boolean;
+	}
 
 	export interface RemoteAuthorityResolverContext {
 		resolveAttempt: number;
@@ -188,6 +82,8 @@ declare module 'vscode' {
 
 	export interface ResolvedOptions {
 		extensionHostEnv?: { [key: string]: string | null; };
+
+		isTrusted?: boolean;
 	}
 
 	export interface TunnelOptions {
@@ -195,18 +91,23 @@ declare module 'vscode' {
 		// The desired local port. If this port can't be used, then another will be chosen.
 		localAddressPort?: number;
 		label?: string;
+		public?: boolean;
+		protocol?: string;
 	}
 
 	export interface TunnelDescription {
 		remoteAddress: { port: number, host: string; };
 		//The complete local address(ex. localhost:1234)
 		localAddress: { port: number, host: string; } | string;
+		public?: boolean;
+		// If protocol is not provided it is assumed to be http, regardless of the localAddress.
+		protocol?: string;
 	}
 
 	export interface Tunnel extends TunnelDescription {
 		// Implementers of Tunnel should fire onDidDispose when dispose is called.
 		onDidDispose: Event<void>;
-		dispose(): void;
+		dispose(): void | Thenable<void>;
 	}
 
 	/**
@@ -230,6 +131,12 @@ declare module 'vscode' {
 		elevationRequired?: boolean;
 	}
 
+	export enum CandidatePortSource {
+		None = 0,
+		Process = 1,
+		Output = 2
+	}
+
 	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
 
 	export class RemoteAuthorityResolverError extends Error {
@@ -240,7 +147,24 @@ declare module 'vscode' {
 	}
 
 	export interface RemoteAuthorityResolver {
+		/**
+		 * Resolve the authority part of the current opened `vscode-remote://` URI.
+		 *
+		 * This method will be invoked once during the startup of the editor and again each time
+		 * the editor detects a disconnection.
+		 *
+		 * @param authority The authority part of the current opened `vscode-remote://` URI.
+		 * @param context A context indicating if this is the first call or a subsequent call.
+		 */
 		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolverResult | Thenable<ResolverResult>;
+
+		/**
+		 * Get the canonical URI (if applicable) for a `vscode-remote://` URI.
+		 *
+		 * @returns The canonical URI or undefined if the uri is already canonical.
+		 */
+		getCanonicalURI?(uri: Uri): ProviderResult<Uri>;
+
 		/**
 		 * Can be optionally implemented if the extension can forward ports better than the core.
 		 * When not implemented, the core will use its default forwarding logic.
@@ -251,10 +175,21 @@ declare module 'vscode' {
 		 */
 		tunnelFactory?: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => Thenable<Tunnel> | undefined;
 
-		/**
+		/**p
 		 * Provides filtering for candidate ports.
 		 */
 		showCandidatePort?: (host: string, port: number, detail: string) => Thenable<boolean>;
+
+		/**
+		 * Lets the resolver declare which tunnel factory features it supports.
+		 * UNDER DISCUSSION! MAY CHANGE SOON.
+		 */
+		tunnelFeatures?: {
+			elevation: boolean;
+			public: boolean;
+		};
+
+		candidatePortSource?: CandidatePortSource;
 	}
 
 	export namespace workspace {
@@ -294,6 +229,7 @@ declare module 'vscode' {
 		tildify?: boolean;
 		normalizeDriveLetter?: boolean;
 		workspaceSuffix?: string;
+		workspaceTooltip?: string;
 		authorityPrefix?: string;
 		stripPathStartingSeparator?: boolean;
 	}
@@ -368,7 +304,7 @@ declare module 'vscode' {
 	/**
 	 * A file glob pattern to match file paths against.
 	 * TODO@roblourens merge this with the GlobPattern docs/definition in vscode.d.ts.
-	 * @see [GlobPattern](#GlobPattern)
+	 * @see {@link GlobPattern}
 	 */
 	export type GlobString = string;
 
@@ -464,17 +400,55 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents the severiry of a TextSearchComplete message.
+	 */
+	export enum TextSearchCompleteMessageType {
+		Information = 1,
+		Warning = 2,
+	}
+
+	/**
+	 * A message regarding a completed search.
+	 */
+	export interface TextSearchCompleteMessage {
+		/**
+		 * Markdown text of the message.
+		 */
+		text: string,
+		/**
+		 * Whether the source of the message is trusted, command links are disabled for untrusted message sources.
+		 * Messaged are untrusted by default.
+		 */
+		trusted?: boolean,
+		/**
+		 * The message type, this affects how the message will be rendered.
+		 */
+		type: TextSearchCompleteMessageType,
+	}
+
+	/**
 	 * Information collected when text search is complete.
 	 */
 	export interface TextSearchComplete {
 		/**
 		 * Whether the search hit the limit on the maximum number of search results.
-		 * `maxResults` on [`TextSearchOptions`](#TextSearchOptions) specifies the max number of results.
+		 * `maxResults` on {@link TextSearchOptions `TextSearchOptions`} specifies the max number of results.
 		 * - If exactly that number of matches exist, this should be false.
 		 * - If `maxResults` matches are returned and more exist, this should be true.
 		 * - If search hits an internal limit which is less than `maxResults`, this should be true.
 		 */
 		limitHit?: boolean;
+
+		/**
+		 * Additional information regarding the state of the completed search.
+		 *
+		 * Messages with "Information" style support links in markdown syntax:
+		 * - Click to [run a command](command:workbench.action.OpenQuickPick)
+		 * - Click to [open a website](https://aka.ms)
+		 *
+		 * Commands may optionally return { triggerSearch: true } to signal to the editor that the original search should run be again.
+		 */
+		message?: TextSearchCompleteMessage | TextSearchCompleteMessage[];
 	}
 
 	/**
@@ -583,7 +557,7 @@ declare module 'vscode' {
 	/**
 	 * A FileSearchProvider provides search results for files in the given folder that match a query string. It can be invoked by quickopen or other extensions.
 	 *
-	 * A FileSearchProvider is the more powerful of two ways to implement file search in VS Code. Use a FileSearchProvider if you wish to search within a folder for
+	 * A FileSearchProvider is the more powerful of two ways to implement file search in the editor. Use a FileSearchProvider if you wish to search within a folder for
 	 * all files that match the user's query.
 	 *
 	 * The FileSearchProvider will be invoked on every keypress in quickopen. When `workspace.findFiles` is called, it will be invoked with an empty query string,
@@ -607,7 +581,7 @@ declare module 'vscode' {
 		 *
 		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
 		 * @param provider The provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
 		export function registerFileSearchProvider(scheme: string, provider: FileSearchProvider): Disposable;
 
@@ -618,7 +592,7 @@ declare module 'vscode' {
 		 *
 		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
 		 * @param provider The provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
 		export function registerTextSearchProvider(scheme: string, provider: TextSearchProvider): Disposable;
 	}
@@ -632,14 +606,14 @@ declare module 'vscode' {
 	 */
 	export interface FindTextInFilesOptions {
 		/**
-		 * A [glob pattern](#GlobPattern) that defines the files to search for. The glob pattern
-		 * will be matched against the file paths of files relative to their workspace. Use a [relative pattern](#RelativePattern)
-		 * to restrict the search results to a [workspace folder](#WorkspaceFolder).
+		 * A {@link GlobPattern glob pattern} that defines the files to search for. The glob pattern
+		 * will be matched against the file paths of files relative to their workspace. Use a {@link RelativePattern relative pattern}
+		 * to restrict the search results to a {@link WorkspaceFolder workspace folder}.
 		 */
 		include?: GlobPattern;
 
 		/**
-		 * A [glob pattern](#GlobPattern) that defines files and folders to exclude. The glob pattern
+		 * A {@link GlobPattern glob pattern} that defines files and folders to exclude. The glob pattern
 		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined`, default excludes will
 		 * apply.
 		 */
@@ -697,7 +671,7 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		/**
-		 * Search text in files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
+		 * Search text in files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
 		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
 		 * @param callback A callback, called for each result
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
@@ -706,7 +680,7 @@ declare module 'vscode' {
 		export function findTextInFiles(query: TextSearchQuery, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<TextSearchComplete>;
 
 		/**
-		 * Search text in files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
+		 * Search text in files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
 		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
 		 * @param options An optional set of query options. Include and exclude patterns, maxResults, etc.
 		 * @param callback A callback, called for each result
@@ -736,13 +710,13 @@ declare module 'vscode' {
 		 * Registers a diff information command that can be invoked via a keyboard shortcut,
 		 * a menu item, an action, or directly.
 		 *
-		 * Diff information commands are different from ordinary [commands](#commands.registerCommand) as
+		 * Diff information commands are different from ordinary {@link commands.registerCommand commands} as
 		 * they only execute when there is an active diff editor when the command is called, and the diff
 		 * information has been computed. Also, the command handler of an editor command has access to
 		 * the diff information.
 		 *
 		 * @param command A unique identifier for the command.
-		 * @param callback A command handler function with access to the [diff information](#LineChange).
+		 * @param callback A command handler function with access to the {@link LineChange diff information}.
 		 * @param thisArg The `this` context used when invoking the handler function.
 		 * @return Disposable which unregisters this command on disposal.
 		 */
@@ -751,7 +725,8 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region debug
+	// eslint-disable-next-line vscode-dts-region-comments
+	//#region @weinand: variables view action contributions
 
 	/**
 	 * A DebugProtocolVariableContainer is an opaque stand-in type for the intersection of the Scope and Variable types defined in the Debug Adapter Protocol.
@@ -771,8 +746,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-
-
+	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @joaomoreno: SCM validation
 
 	/**
@@ -815,14 +789,20 @@ declare module 'vscode' {
 	export interface SourceControlInputBox {
 
 		/**
+		 * Shows a transient contextual message on the input.
+		 */
+		showValidationMessage(message: string, type: SourceControlInputBoxValidationType): void;
+
+		/**
 		 * A validation function for the input box. It's possible to change
 		 * the validation provider simply by setting this property to a different function.
 		 */
-		validateInput?(value: string, cursorPosition: number): ProviderResult<SourceControlInputBoxValidation | undefined | null>;
+		validateInput?(value: string, cursorPosition: number): ProviderResult<SourceControlInputBoxValidation>;
 	}
 
 	//#endregion
 
+	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @joaomoreno: SCM selected provider
 
 	export interface SourceControl {
@@ -844,7 +824,7 @@ declare module 'vscode' {
 
 	export interface TerminalDataWriteEvent {
 		/**
-		 * The [terminal](#Terminal) for which the data was written.
+		 * The {@link Terminal} for which the data was written.
 		 */
 		readonly terminal: Terminal;
 		/**
@@ -867,22 +847,22 @@ declare module 'vscode' {
 	//#region Terminal dimensions property and change event https://github.com/microsoft/vscode/issues/55718
 
 	/**
-	 * An [event](#Event) which fires when a [Terminal](#Terminal)'s dimensions change.
+	 * An {@link Event} which fires when a {@link Terminal}'s dimensions change.
 	 */
 	export interface TerminalDimensionsChangeEvent {
 		/**
-		 * The [terminal](#Terminal) for which the dimensions have changed.
+		 * The {@link Terminal} for which the dimensions have changed.
 		 */
 		readonly terminal: Terminal;
 		/**
-		 * The new value for the [terminal's dimensions](#Terminal.dimensions).
+		 * The new value for the {@link Terminal.dimensions terminal's dimensions}.
 		 */
 		readonly dimensions: TerminalDimensions;
 	}
 
 	export namespace window {
 		/**
-		 * An event which fires when the [dimensions](#Terminal.dimensions) of the terminal change.
+		 * An event which fires when the {@link Terminal.dimensions dimensions} of the terminal change.
 		 */
 		export const onDidChangeTerminalDimensions: Event<TerminalDimensionsChangeEvent>;
 	}
@@ -898,6 +878,31 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Terminal name change event https://github.com/microsoft/vscode/issues/114898
+
+	export interface Pseudoterminal {
+		/**
+		 * An event that when fired allows changing the name of the terminal.
+		 *
+		 * **Example:** Change the terminal name to "My new terminal".
+		 * ```typescript
+		 * const writeEmitter = new vscode.EventEmitter<string>();
+		 * const changeNameEmitter = new vscode.EventEmitter<string>();
+		 * const pty: vscode.Pseudoterminal = {
+		 *   onDidWrite: writeEmitter.event,
+		 *   onDidChangeName: changeNameEmitter.event,
+		 *   open: () => changeNameEmitter.fire('My new terminal'),
+		 *   close: () => {}
+		 * };
+		 * vscode.window.createTerminal({ name: 'My terminal', pty });
+		 * ```
+		 */
+		onDidChangeName?: Event<string>;
+	}
+
+	//#endregion
+
+	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @jrieken -> exclusive document filters
 
 	export interface DocumentFilter {
@@ -906,18 +911,40 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region @alexdima - OnEnter enhancement
-	export interface OnEnterRule {
-		/**
-		 * This rule will only execute if the text above the this line matches this regular expression.
-		 */
-		oneLineAboveText?: RegExp;
+	//#region Tree View: https://github.com/microsoft/vscode/issues/61313 @alexr00
+	export interface TreeView<T> extends Disposable {
+		reveal(element: T | undefined, options?: { select?: boolean, focus?: boolean, expand?: boolean | number; }): Thenable<void>;
 	}
 	//#endregion
 
-	//#region Tree View: https://github.com/microsoft/vscode/issues/61313
-	export interface TreeView<T> extends Disposable {
-		reveal(element: T | undefined, options?: { select?: boolean, focus?: boolean, expand?: boolean | number }): Thenable<void>;
+	//#region Custom Tree View Drag and Drop https://github.com/microsoft/vscode/issues/32592
+	/**
+	 * A data provider that provides tree data
+	 */
+	export interface TreeDataProvider<T> {
+		/**
+		 * An optional event to signal that an element or root has changed.
+		 * This will trigger the view to update the changed element/root and its children recursively (if shown).
+		 * To signal that root has changed, do not pass any argument or pass `undefined` or `null`.
+		 */
+		onDidChangeTreeData2?: Event<T | T[] | undefined | null | void>;
+	}
+
+	export interface TreeViewOptions<T> {
+		/**
+		* An optional interface to implement drag and drop in the tree view.
+		*/
+		dragAndDropController?: DragAndDropController<T>;
+	}
+
+	export interface DragAndDropController<T> extends Disposable {
+		/**
+		 * Extensions should fire `TreeDataProvider.onDidChangeTreeData` for any elements that need to be refreshed.
+		 *
+		 * @param source
+		 * @param target
+		 */
+		onDrop(source: T[], target: T): Thenable<void>;
 	}
 	//#endregion
 
@@ -930,59 +957,6 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region Status bar item with ID and Name: https://github.com/microsoft/vscode/issues/74972
-
-	export namespace window {
-
-		/**
-		 * Options to configure the status bar item.
-		 */
-		export interface StatusBarItemOptions {
-
-			/**
-			 * A unique identifier of the status bar item. The identifier
-			 * is for example used to allow a user to show or hide the
-			 * status bar item in the UI.
-			 */
-			id: string;
-
-			/**
-			 * A human readable name of the status bar item. The name is
-			 * for example used as a label in the UI to show or hide the
-			 * status bar item.
-			 */
-			name: string;
-
-			/**
-			 * Accessibility information used when screen reader interacts with this status bar item.
-			 */
-			accessibilityInformation?: AccessibilityInformation;
-
-			/**
-			 * The alignment of the status bar item.
-			 */
-			alignment?: StatusBarAlignment;
-
-			/**
-			 * The priority of the status bar item. Higher value means the item should
-			 * be shown more to the left.
-			 */
-			priority?: number;
-		}
-
-		/**
-		 * Creates a status bar [item](#StatusBarItem).
-		 *
-		 * @param options The options of the item. If not provided, some default values
-		 * will be assumed. For example, the `StatusBarItemOptions.id` will be the id
-		 * of the extension and the `StatusBarItemOptions.name` will be the extension name.
-		 * @return A new status bar item.
-		 */
-		export function createStatusBarItem(options?: StatusBarItemOptions): StatusBarItem;
-	}
-
-	//#endregion
-
 	//#region Custom editor move https://github.com/microsoft/vscode/issues/86146
 
 	// TODO: Also for custom editor
@@ -993,7 +967,7 @@ declare module 'vscode' {
 		 * Handle when the underlying resource for a custom editor is renamed.
 		 *
 		 * This allows the webview for the editor be preserved throughout the rename. If this method is not implemented,
-		 * VS Code will destory the previous custom editor and create a replacement one.
+		 * the editor will destroy the previous custom editor and create a replacement one.
 		 *
 		 * @param newDocument New text document to use for the custom editor.
 		 * @param existingWebviewPanel Webview panel for the custom editor.
@@ -1001,6 +975,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable indicating that the webview editor has been moved.
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		moveCustomTextEditor?(newDocument: TextDocument, existingWebviewPanel: WebviewPanel, token: CancellationToken): Thenable<void>;
 	}
 
@@ -1017,638 +992,278 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region @rebornix: Notebook
+	//#region https://github.com/microsoft/vscode/issues/124970, Cell Execution State
 
-	export enum CellKind {
-		Markdown = 1,
-		Code = 2
+	/**
+	 * The execution state of a notebook cell.
+	 */
+	export enum NotebookCellExecutionState {
+		/**
+		 * The cell is idle.
+		 */
+		Idle = 1,
+		/**
+		 * Execution for the cell is pending.
+		 */
+		Pending = 2,
+		/**
+		 * The cell is currently executing.
+		 */
+		Executing = 3,
 	}
 
-	export enum CellOutputKind {
-		Text = 1,
-		Error = 2,
-		Rich = 3
+	/**
+	 * An event describing a cell execution state change.
+	 */
+	export interface NotebookCellExecutionStateChangeEvent {
+		/**
+		 * The {@link NotebookCell cell} for which the execution state has changed.
+		 */
+		readonly cell: NotebookCell;
+
+		/**
+		 * The new execution state of the cell.
+		 */
+		readonly state: NotebookCellExecutionState;
 	}
 
-	export interface CellStreamOutput {
-		outputKind: CellOutputKind.Text;
-		text: string;
+	export namespace notebooks {
+
+		/**
+		 * An {@link Event} which fires when the execution state of a cell has changed.
+		 */
+		// todo@API this is an event that is fired for a property that cells don't have and that makes me wonder
+		// how a correct consumer works, e.g the consumer could have been late and missed an event?
+		export const onDidChangeNotebookCellExecutionState: Event<NotebookCellExecutionStateChangeEvent>;
 	}
 
-	export interface CellErrorOutput {
-		outputKind: CellOutputKind.Error;
-		/**
-		 * Exception Name
-		 */
-		ename: string;
-		/**
-		 * Exception Value
-		 */
-		evalue: string;
-		/**
-		 * Exception call stack
-		 */
-		traceback: string[];
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/106744, Notebook, deprecated & misc
+
+	export interface NotebookCellOutput {
+		id: string;
 	}
 
-	export interface NotebookCellOutputMetadata {
-		/**
-		 * Additional attributes of a cell metadata.
-		 */
-		custom?: { [key: string]: any };
-	}
+	//#endregion
 
-	export interface CellDisplayOutput {
-		outputKind: CellOutputKind.Rich;
-		/**
-		 * { mime_type: value }
-		 *
-		 * Example:
-		 * ```json
-		 * {
-		 *   "outputKind": vscode.CellOutputKind.Rich,
-		 *   "data": {
-		 *      "text/html": [
-		 *          "<h1>Hello</h1>"
-		 *       ],
-		 *      "text/plain": [
-		 *        "<IPython.lib.display.IFrame at 0x11dee3e80>"
-		 *      ]
-		 *   }
-		 * }
-		 */
-		data: { [key: string]: any; };
+	//#region https://github.com/microsoft/vscode/issues/106744, NotebookEditor
 
-		readonly metadata?: NotebookCellOutputMetadata;
-	}
-
-	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
-
-	export class NotebookCellOutputItem {
-
-		readonly mime: string;
-		readonly value: unknown;
-		readonly metadata?: Record<string, string | number | boolean>;
-
-		constructor(mime: string, value: unknown, metadata?: Record<string, string | number | boolean>);
-	}
-
-	//TODO@jrieken add id?
-	export class NotebookCellOutput {
-
-		readonly outputs: NotebookCellOutputItem[];
-		readonly metadata?: Record<string, string | number | boolean>;
-
-		constructor(outputs: NotebookCellOutputItem[], metadata?: Record<string, string | number | boolean>);
-
-		//TODO@jrieken HACK to workaround dependency issues...
-		toJSON(): any;
-	}
-
-	export enum NotebookCellRunState {
-		Running = 1,
-		Idle = 2,
-		Success = 3,
-		Error = 4
-	}
-
-	export enum NotebookRunState {
-		Running = 1,
-		Idle = 2
-	}
-
-	export interface NotebookCellMetadata {
-		/**
-		 * Controls whether a cell's editor is editable/readonly.
-		 */
-		editable?: boolean;
-
-		/**
-		 * Controls if the cell is executable.
-		 * This metadata is ignored for markdown cell.
-		 */
-		runnable?: boolean;
-
-		/**
-		 * Controls if the cell has a margin to support the breakpoint UI.
-		 * This metadata is ignored for markdown cell.
-		 */
-		breakpointMargin?: boolean;
-
-		/**
-		 * Whether the [execution order](#NotebookCellMetadata.executionOrder) indicator will be displayed.
-		 * Defaults to true.
-		 */
-		hasExecutionOrder?: boolean;
-
-		/**
-		 * The order in which this cell was executed.
-		 */
-		executionOrder?: number;
-
-		/**
-		 * A status message to be shown in the cell's status bar
-		 */
-		statusMessage?: string;
-
-		/**
-		 * The cell's current run state
-		 */
-		runState?: NotebookCellRunState;
-
-		/**
-		 * If the cell is running, the time at which the cell started running
-		 */
-		runStartTime?: number;
-
-		/**
-		 * The total duration of the cell's last run
-		 */
-		lastRunDuration?: number;
-
-		/**
-		 * Whether a code cell's editor is collapsed
-		 */
-		inputCollapsed?: boolean;
-
-		/**
-		 * Whether a code cell's outputs are collapsed
-		 */
-		outputCollapsed?: boolean;
-
-		/**
-		 * Additional attributes of a cell metadata.
-		 */
-		custom?: { [key: string]: any };
-	}
-
-	export interface NotebookCell {
-		readonly index: number;
-		readonly notebook: NotebookDocument;
-		readonly uri: Uri;
-		readonly cellKind: CellKind;
-		readonly document: TextDocument;
-		readonly language: string;
-		outputs: CellOutput[];
-		metadata: NotebookCellMetadata;
-	}
-
-	export interface NotebookDocumentMetadata {
-		/**
-		 * Controls if users can add or delete cells
-		 * Defaults to true
-		 */
-		editable?: boolean;
-
-		/**
-		 * Controls whether the full notebook can be run at once.
-		 * Defaults to true
-		 */
-		runnable?: boolean;
-
-		/**
-		 * Default value for [cell editable metadata](#NotebookCellMetadata.editable).
-		 * Defaults to true.
-		 */
-		cellEditable?: boolean;
-
-		/**
-		 * Default value for [cell runnable metadata](#NotebookCellMetadata.runnable).
-		 * Defaults to true.
-		 */
-		cellRunnable?: boolean;
-
-		/**
-		 * Default value for [cell hasExecutionOrder metadata](#NotebookCellMetadata.hasExecutionOrder).
-		 * Defaults to true.
-		 */
-		cellHasExecutionOrder?: boolean;
-
-		displayOrder?: GlobPattern[];
-
-		/**
-		 * Additional attributes of the document metadata.
-		 */
-		custom?: { [key: string]: any };
-
-		/**
-		 * The document's current run state
-		 */
-		runState?: NotebookRunState;
-
-		/**
-		 * Whether the document is trusted, default to true
-		 * When false, insecure outputs like HTML, JavaScript, SVG will not be rendered.
-		 */
-		trusted?: boolean;
-	}
-
-	export interface NotebookDocumentContentOptions {
-		/**
-		 * Controls if outputs change will trigger notebook document content change and if it will be used in the diff editor
-		 * Default to false. If the content provider doesn't persisit the outputs in the file document, this should be set to true.
-		 */
-		transientOutputs: boolean;
-
-		/**
-		 * Controls if a meetadata property change will trigger notebook document content change and if it will be used in the diff editor
-		 * Default to false. If the content provider doesn't persisit a metadata property in the file document, it should be set to true.
-		 */
-		transientMetadata: { [K in keyof NotebookCellMetadata]?: boolean };
-	}
-
-	export interface NotebookDocument {
-		readonly uri: Uri;
-		readonly version: number;
-		readonly fileName: string;
-		readonly viewType: string;
-		readonly isDirty: boolean;
-		readonly isUntitled: boolean;
-		readonly cells: ReadonlyArray<NotebookCell>;
-		readonly contentOptions: NotebookDocumentContentOptions;
-		languages: string[];
-		metadata: NotebookDocumentMetadata;
-	}
-
-	export interface NotebookConcatTextDocument {
-		uri: Uri;
-		isClosed: boolean;
-		dispose(): void;
-		onDidChange: Event<void>;
-		version: number;
-		getText(): string;
-		getText(range: Range): string;
-
-		offsetAt(position: Position): number;
-		positionAt(offset: number): Position;
-		validateRange(range: Range): Range;
-		validatePosition(position: Position): Position;
-
-		locationAt(positionOrRange: Position | Range): Location;
-		positionAt(location: Location): Position;
-		contains(uri: Uri): boolean
-	}
-
-	export interface WorkspaceEdit {
-		replaceNotebookMetadata(uri: Uri, value: NotebookDocumentMetadata): void;
-		replaceNotebookCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
-		replaceNotebookCellOutput(uri: Uri, index: number, outputs: (NotebookCellOutput | CellOutput)[], metadata?: WorkspaceEditEntryMetadata): void;
-		replaceNotebookCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
-	}
-
-	export interface NotebookEditorEdit {
-		replaceMetadata(value: NotebookDocumentMetadata): void;
-		replaceCells(start: number, end: number, cells: NotebookCellData[]): void;
-		replaceCellOutput(index: number, outputs: (NotebookCellOutput | CellOutput)[]): void;
-		replaceCellMetadata(index: number, metadata: NotebookCellMetadata): void;
-	}
-
-	export interface NotebookCellRange {
-		readonly start: number;
-		/**
-		 * exclusive
-		 */
-		readonly end: number;
-	}
-
+	/**
+	 * Represents a notebook editor that is attached to a {@link NotebookDocument notebook}.
+	 */
 	export enum NotebookEditorRevealType {
 		/**
 		 * The range will be revealed with as little scrolling as possible.
 		 */
 		Default = 0,
+
 		/**
 		 * The range will always be revealed in the center of the viewport.
 		 */
 		InCenter = 1,
+
 		/**
 		 * If the range is outside the viewport, it will be revealed in the center of the viewport.
 		 * Otherwise, it will be revealed with as little scrolling as possible.
 		 */
 		InCenterIfOutsideViewport = 2,
+
+		/**
+		 * The range will always be revealed at the top of the viewport.
+		 */
+		AtTop = 3
 	}
 
+	/**
+	 * Represents a notebook editor that is attached to a {@link NotebookDocument notebook}.
+	 */
 	export interface NotebookEditor {
 		/**
 		 * The document associated with this notebook editor.
 		 */
+		//todo@api rename to notebook?
 		readonly document: NotebookDocument;
 
 		/**
-		 * The primary selected cell on this notebook editor.
+		 * The selections on this notebook editor.
+		 *
+		 * The primary selection (or focused range) is `selections[0]`. When the document has no cells, the primary selection is empty `{ start: 0, end: 0 }`;
 		 */
-		readonly selection?: NotebookCell;
-
+		selections: NotebookRange[];
 
 		/**
 		 * The current visible ranges in the editor (vertically).
 		 */
-		readonly visibleRanges: NotebookCellRange[];
+		readonly visibleRanges: NotebookRange[];
+
+		/**
+		 * Scroll as indicated by `revealType` in order to reveal the given range.
+		 *
+		 * @param range A range.
+		 * @param revealType The scrolling strategy for revealing `range`.
+		 */
+		revealRange(range: NotebookRange, revealType?: NotebookEditorRevealType): void;
 
 		/**
 		 * The column in which this editor shows.
 		 */
 		readonly viewColumn?: ViewColumn;
-
-		/**
-		 * Fired when the panel is disposed.
-		 */
-		readonly onDidDispose: Event<void>;
-
-		/**
-		 * Active kernel used in the editor
-		 */
-		readonly kernel?: NotebookKernel;
-
-		/**
-		 * Fired when the output hosting webview posts a message.
-		 */
-		readonly onDidReceiveMessage: Event<any>;
-		/**
-		 * Post a message to the output hosting webview.
-		 *
-		 * Messages are only delivered if the editor is live.
-		 *
-		 * @param message Body of the message. This must be a string or other json serializable object.
-		 */
-		postMessage(message: any): Thenable<boolean>;
-
-		/**
-		 * Convert a uri for the local file system to one that can be used inside outputs webview.
-		 */
-		asWebviewUri(localResource: Uri): Uri;
-
-		/**
-		 * Perform an edit on the notebook associated with this notebook editor.
-		 *
-		 * The given callback-function is invoked with an [edit-builder](#NotebookEditorEdit) which must
-		 * be used to make edits. Note that the edit-builder is only valid while the
-		 * callback executes.
-		 *
-		 * @param callback A function which can create edits using an [edit-builder](#NotebookEditorEdit).
-		 * @return A promise that resolves with a value indicating if the edits could be applied.
-		 */
-		edit(callback: (editBuilder: NotebookEditorEdit) => void): Thenable<boolean>;
-
-		setDecorations(decorationType: NotebookEditorDecorationType, range: NotebookCellRange): void;
-
-		revealRange(range: NotebookCellRange, revealType?: NotebookEditorRevealType): void;
-	}
-
-	export interface NotebookOutputSelector {
-		mimeTypes?: string[];
-	}
-
-	export interface NotebookRenderRequest {
-		output: CellDisplayOutput;
-		mimeType: string;
-		outputId: string;
 	}
 
 	export interface NotebookDocumentMetadataChangeEvent {
+		/**
+		 * The {@link NotebookDocument notebook document} for which the document metadata have changed.
+		 */
+		//todo@API rename to notebook?
 		readonly document: NotebookDocument;
 	}
 
 	export interface NotebookCellsChangeData {
 		readonly start: number;
+		// todo@API end? Use NotebookCellRange instead?
 		readonly deletedCount: number;
+		// todo@API removedCells, deletedCells?
 		readonly deletedItems: NotebookCell[];
+		// todo@API addedCells, insertedCells, newCells?
 		readonly items: NotebookCell[];
 	}
 
 	export interface NotebookCellsChangeEvent {
-
 		/**
-		 * The affected document.
+		 * The {@link NotebookDocument notebook document} for which the cells have changed.
 		 */
+		//todo@API rename to notebook?
 		readonly document: NotebookDocument;
 		readonly changes: ReadonlyArray<NotebookCellsChangeData>;
 	}
 
-	export interface NotebookCellMoveEvent {
-
-		/**
-		 * The affected document.
-		 */
-		readonly document: NotebookDocument;
-		readonly index: number;
-		readonly newIndex: number;
-	}
-
 	export interface NotebookCellOutputsChangeEvent {
-
 		/**
-		 * The affected document.
+		 * The {@link NotebookDocument notebook document} for which the cell outputs have changed.
 		 */
+		//todo@API remove? use cell.notebook instead?
 		readonly document: NotebookDocument;
+		// NotebookCellOutputsChangeEvent.cells vs NotebookCellMetadataChangeEvent.cell
 		readonly cells: NotebookCell[];
 	}
 
-	export interface NotebookCellLanguageChangeEvent {
-
-		/**
-		 * The affected document.
-		 */
-		readonly document: NotebookDocument;
-		readonly cell: NotebookCell;
-		readonly language: string;
-	}
-
 	export interface NotebookCellMetadataChangeEvent {
+		/**
+		 * The {@link NotebookDocument notebook document} for which the cell metadata have changed.
+		 */
+		//todo@API remove? use cell.notebook instead?
 		readonly document: NotebookDocument;
+		// NotebookCellOutputsChangeEvent.cells vs NotebookCellMetadataChangeEvent.cell
 		readonly cell: NotebookCell;
 	}
 
 	export interface NotebookEditorSelectionChangeEvent {
+		/**
+		 * The {@link NotebookEditor notebook editor} for which the selections have changed.
+		 */
 		readonly notebookEditor: NotebookEditor;
-		readonly selection?: NotebookCell;
+		readonly selections: ReadonlyArray<NotebookRange>
 	}
 
 	export interface NotebookEditorVisibleRangesChangeEvent {
+		/**
+		 * The {@link NotebookEditor notebook editor} for which the visible ranges have changed.
+		 */
 		readonly notebookEditor: NotebookEditor;
-		readonly visibleRanges: ReadonlyArray<NotebookCellRange>;
+		readonly visibleRanges: ReadonlyArray<NotebookRange>;
 	}
 
-	export interface NotebookCellData {
-		readonly cellKind: CellKind;
-		readonly source: string;
-		readonly language: string;
-		readonly outputs: CellOutput[];
-		readonly metadata: NotebookCellMetadata | undefined;
+
+	export interface NotebookDocumentShowOptions {
+		viewColumn?: ViewColumn;
+		preserveFocus?: boolean;
+		preview?: boolean;
+		selections?: NotebookRange[];
 	}
 
-	export interface NotebookData {
-		readonly cells: NotebookCellData[];
-		readonly languages: string[];
-		readonly metadata: NotebookDocumentMetadata;
+	export namespace notebooks {
+
+
+
+		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
+
+		export const onDidChangeNotebookDocumentMetadata: Event<NotebookDocumentMetadataChangeEvent>;
+		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
+
+		// todo@API add onDidChangeNotebookCellOutputs
+		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
+
+		// todo@API add onDidChangeNotebookCellMetadata
+		export const onDidChangeCellMetadata: Event<NotebookCellMetadataChangeEvent>;
 	}
 
-	interface NotebookDocumentContentChangeEvent {
+	export namespace window {
+		export const visibleNotebookEditors: NotebookEditor[];
+		export const onDidChangeVisibleNotebookEditors: Event<NotebookEditor[]>;
+		export const activeNotebookEditor: NotebookEditor | undefined;
+		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
+		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
+		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
 
+		export function showNotebookDocument(uri: Uri, options?: NotebookDocumentShowOptions): Thenable<NotebookEditor>;
+		export function showNotebookDocument(document: NotebookDocument, options?: NotebookDocumentShowOptions): Thenable<NotebookEditor>;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/106744, NotebookEditorEdit
+
+	// todo@API add NotebookEdit-type which handles all these cases?
+	// export class NotebookEdit {
+	// 	range: NotebookRange;
+	// 	newCells: NotebookCellData[];
+	// 	newMetadata?: NotebookDocumentMetadata;
+	// 	constructor(range: NotebookRange, newCells: NotebookCellData)
+	// }
+
+	// export class NotebookCellEdit {
+	// 	newMetadata?: NotebookCellMetadata;
+	// }
+
+	// export interface WorkspaceEdit {
+	// 	set(uri: Uri, edits: TextEdit[] | NotebookEdit[]): void
+	// }
+
+	export interface WorkspaceEdit {
+		// todo@API add NotebookEdit-type which handles all these cases?
+		replaceNotebookMetadata(uri: Uri, value: { [key: string]: any }): void;
+		replaceNotebookCells(uri: Uri, range: NotebookRange, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
+		replaceNotebookCellMetadata(uri: Uri, index: number, cellMetadata: { [key: string]: any }, metadata?: WorkspaceEditEntryMetadata): void;
+	}
+
+	export interface NotebookEditorEdit {
+		replaceMetadata(value: { [key: string]: any }): void;
+		replaceCells(start: number, end: number, cells: NotebookCellData[]): void;
+		replaceCellMetadata(index: number, metadata: { [key: string]: any }): void;
+	}
+
+	export interface NotebookEditor {
 		/**
-		 * The document that the edit is for.
-		 */
-		readonly document: NotebookDocument;
-	}
-
-	interface NotebookDocumentEditEvent {
-
-		/**
-		 * The document that the edit is for.
-		 */
-		readonly document: NotebookDocument;
-
-		/**
-		 * Undo the edit operation.
+		 * Perform an edit on the notebook associated with this notebook editor.
 		 *
-		 * This is invoked by VS Code when the user undoes this edit. To implement `undo`, your
-		 * extension should restore the document and editor to the state they were in just before this
-		 * edit was added to VS Code's internal edit stack by `onDidChangeCustomDocument`.
-		 */
-		undo(): Thenable<void> | void;
-
-		/**
-		 * Redo the edit operation.
+		 * The given callback-function is invoked with an {@link NotebookEditorEdit edit-builder} which must
+		 * be used to make edits. Note that the edit-builder is only valid while the
+		 * callback executes.
 		 *
-		 * This is invoked by VS Code when the user redoes this edit. To implement `redo`, your
-		 * extension should restore the document and editor to the state they were in just after this
-		 * edit was added to VS Code's internal edit stack by `onDidChangeCustomDocument`.
+		 * @param callback A function which can create edits using an {@link NotebookEditorEdit edit-builder}.
+		 * @return A promise that resolves with a value indicating if the edits could be applied.
 		 */
-		redo(): Thenable<void> | void;
-
-		/**
-		 * Display name describing the edit.
-		 *
-		 * This will be shown to users in the UI for undo/redo operations.
-		 */
-		readonly label?: string;
+		// @jrieken REMOVE maybe
+		edit(callback: (editBuilder: NotebookEditorEdit) => void): Thenable<boolean>;
 	}
 
-	interface NotebookDocumentBackup {
-		/**
-		 * Unique identifier for the backup.
-		 *
-		 * This id is passed back to your extension in `openNotebook` when opening a notebook editor from a backup.
-		 */
-		readonly id: string;
+	//#endregion
 
-		/**
-		 * Delete the current backup.
-		 *
-		 * This is called by VS Code when it is clear the current backup is no longer needed, such as when a new backup
-		 * is made or when the file is saved.
-		 */
-		delete(): void;
-	}
+	//#region https://github.com/microsoft/vscode/issues/106744, NotebookEditorDecorationType
 
-	interface NotebookDocumentBackupContext {
-		readonly destination: Uri;
-	}
-
-	interface NotebookDocumentOpenContext {
-		readonly backupId?: string;
-	}
-
-	/**
-	 * Communication object passed to the {@link NotebookContentProvider} and
-	 * {@link NotebookOutputRenderer} to communicate with the webview.
-	 */
-	export interface NotebookCommunication {
-		/**
-		 * ID of the editor this object communicates with. A single notebook
-		 * document can have multiple attached webviews and editors, when the
-		 * notebook is split for instance. The editor ID lets you differentiate
-		 * between them.
-		 */
-		readonly editorId: string;
-
-		/**
-		 * Fired when the output hosting webview posts a message.
-		 */
-		readonly onDidReceiveMessage: Event<any>;
-		/**
-		 * Post a message to the output hosting webview.
-		 *
-		 * Messages are only delivered if the editor is live.
-		 *
-		 * @param message Body of the message. This must be a string or other json serializable object.
-		 */
-		postMessage(message: any): Thenable<boolean>;
-
-		/**
-		 * Convert a uri for the local file system to one that can be used inside outputs webview.
-		 */
-		asWebviewUri(localResource: Uri): Uri;
-	}
-
-	export interface NotebookContentProvider {
-		readonly options?: NotebookDocumentContentOptions;
-		readonly onDidChangeNotebookContentOptions?: Event<NotebookDocumentContentOptions>;
-		readonly onDidChangeNotebook: Event<NotebookDocumentContentChangeEvent | NotebookDocumentEditEvent>;
-
-		/**
-		 * Content providers should always use [file system providers](#FileSystemProvider) to
-		 * resolve the raw content for `uri` as the resouce is not necessarily a file on disk.
-		 */
-		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext): NotebookData | Promise<NotebookData>;
-		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Promise<void>;
-		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
-		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
-		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Promise<NotebookDocumentBackup>;
-	}
-
-	export interface NotebookKernel {
-		readonly id?: string;
-		label: string;
-		description?: string;
-		detail?: string;
-		isPreferred?: boolean;
-		preloads?: Uri[];
-		executeCell(document: NotebookDocument, cell: NotebookCell): void;
-		cancelCellExecution(document: NotebookDocument, cell: NotebookCell): void;
-		executeAllCells(document: NotebookDocument): void;
-		cancelAllCellsExecution(document: NotebookDocument): void;
-	}
-
-	export type NotebookFilenamePattern = GlobPattern | { include: GlobPattern; exclude: GlobPattern };
-
-	export interface NotebookDocumentFilter {
-		viewType?: string | string[];
-		filenamePattern?: NotebookFilenamePattern;
-	}
-
-	export interface NotebookKernelProvider<T extends NotebookKernel = NotebookKernel> {
-		onDidChangeKernels?: Event<NotebookDocument | undefined>;
-		provideKernels(document: NotebookDocument, token: CancellationToken): ProviderResult<T[]>;
-		resolveKernel?(kernel: T, document: NotebookDocument, webview: NotebookCommunication, token: CancellationToken): ProviderResult<void>;
-	}
-
-	/**
-	 * Represents the alignment of status bar items.
-	 */
-	export enum NotebookCellStatusBarAlignment {
-
-		/**
-		 * Aligned to the left side.
-		 */
-		Left = 1,
-
-		/**
-		 * Aligned to the right side.
-		 */
-		Right = 2
-	}
-
-	export interface NotebookCellStatusBarItem {
-		readonly cell: NotebookCell;
-		readonly alignment: NotebookCellStatusBarAlignment;
-		readonly priority?: number;
-		text: string;
-		tooltip: string | undefined;
-		command: string | Command | undefined;
-		accessibilityInformation?: AccessibilityInformation;
-		show(): void;
-		hide(): void;
-		dispose(): void;
+	export interface NotebookEditor {
+		setDecorations(decorationType: NotebookEditorDecorationType, range: NotebookRange): void;
 	}
 
 	export interface NotebookDecorationRenderOptions {
@@ -1662,50 +1277,15 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
-	export interface NotebookDocumentShowOptions {
-		viewColumn?: ViewColumn;
-		preserveFocus?: boolean;
-		preview?: boolean;
-		selection?: NotebookCellRange;
+	export namespace notebooks {
+		export function createNotebookEditorDecorationType(options: NotebookDecorationRenderOptions): NotebookEditorDecorationType;
 	}
 
+	//#endregion
 
-	export namespace notebook {
-		export function registerNotebookContentProvider(
-			notebookType: string,
-			provider: NotebookContentProvider,
-			options?: NotebookDocumentContentOptions & {
-				/**
-				 * Not ready for production or development use yet.
-				 */
-				viewOptions?: {
-					displayName: string;
-					filenamePattern: NotebookFilenamePattern[];
-					exclusive?: boolean;
-				};
-			}
-		): Disposable;
+	//#region https://github.com/microsoft/vscode/issues/106744, NotebookConcatTextDocument
 
-		export function registerNotebookKernelProvider(
-			selector: NotebookDocumentFilter,
-			provider: NotebookKernelProvider
-		): Disposable;
-
-		export function createNotebookEditorDecorationType(options: NotebookDecorationRenderOptions): NotebookEditorDecorationType;
-		export function openNotebookDocument(uri: Uri, viewType?: string): Promise<NotebookDocument>;
-		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
-		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
-		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
-
-		/**
-		 * All currently known notebook documents.
-		 */
-		export const notebookDocuments: ReadonlyArray<NotebookDocument>;
-		export const onDidChangeNotebookDocumentMetadata: Event<NotebookDocumentMetadataChangeEvent>;
-		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
-		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
-		export const onDidChangeCellLanguage: Event<NotebookCellLanguageChangeEvent>;
-		export const onDidChangeCellMetadata: Event<NotebookCellMetadataChangeEvent>;
+	export namespace notebooks {
 		/**
 		 * Create a document that is the concatenation of all  notebook cells. By default all code-cells are included
 		 * but a selector can be provided to narrow to down the set of cells.
@@ -1713,63 +1293,208 @@ declare module 'vscode' {
 		 * @param notebook
 		 * @param selector
 		 */
+		// todo@API really needed? we didn't find a user here
 		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
-
-		export const onDidChangeActiveNotebookKernel: Event<{ document: NotebookDocument, kernel: NotebookKernel | undefined }>;
-
-		/**
-		 * Creates a notebook cell status bar [item](#NotebookCellStatusBarItem).
-		 * It will be disposed automatically when the notebook document is closed or the cell is deleted.
-		 *
-		 * @param cell The cell on which this item should be shown.
-		 * @param alignment The alignment of the item.
-		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
-		 * @return A new status bar item.
-		 */
-		export function createCellStatusBarItem(cell: NotebookCell, alignment?: NotebookCellStatusBarAlignment, priority?: number): NotebookCellStatusBarItem;
 	}
 
-	export namespace window {
-		export const visibleNotebookEditors: NotebookEditor[];
-		export const onDidChangeVisibleNotebookEditors: Event<NotebookEditor[]>;
-		export const activeNotebookEditor: NotebookEditor | undefined;
-		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
-		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
-		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
-		export function showNotebookDocument(document: NotebookDocument, options?: NotebookDocumentShowOptions): Promise<NotebookEditor>;
+	export interface NotebookConcatTextDocument {
+		readonly uri: Uri;
+		readonly isClosed: boolean;
+		dispose(): void;
+		readonly onDidChange: Event<void>;
+		readonly version: number;
+		getText(): string;
+		getText(range: Range): string;
+
+		offsetAt(position: Position): number;
+		positionAt(offset: number): Position;
+		validateRange(range: Range): Range;
+		validatePosition(position: Position): Position;
+
+		locationAt(positionOrRange: Position | Range): Location;
+		positionAt(location: Location): Position;
+		contains(uri: Uri): boolean;
 	}
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/39441
+	//#region https://github.com/microsoft/vscode/issues/106744, NotebookContentProvider
 
-	export interface CompletionItem {
+
+	interface NotebookDocumentBackup {
 		/**
-		 * Will be merged into CompletionItem#label
+		 * Unique identifier for the backup.
+		 *
+		 * This id is passed back to your extension in `openNotebook` when opening a notebook editor from a backup.
 		 */
-		label2?: CompletionItemLabel;
+		readonly id: string;
+
+		/**
+		 * Delete the current backup.
+		 *
+		 * This is called by the editor when it is clear the current backup is no longer needed, such as when a new backup
+		 * is made or when the file is saved.
+		 */
+		delete(): void;
 	}
 
-	export interface CompletionItemLabel {
-		/**
-		 * The function or variable. Rendered leftmost.
-		 */
-		name: string;
+	interface NotebookDocumentBackupContext {
+		readonly destination: Uri;
+	}
+
+	interface NotebookDocumentOpenContext {
+		readonly backupId?: string;
+		readonly untitledDocumentData?: Uint8Array;
+	}
+
+	// todo@API use openNotebookDOCUMENT to align with openCustomDocument etc?
+	// todo@API rename to NotebookDocumentContentProvider
+	export interface NotebookContentProvider {
+
+		readonly options?: NotebookDocumentContentOptions;
+		readonly onDidChangeNotebookContentOptions?: Event<NotebookDocumentContentOptions>;
 
 		/**
-		 * The parameters without the return type. Render after `name`.
+		 * Content providers should always use {@link FileSystemProvider file system providers} to
+		 * resolve the raw content for `uri` as the resouce is not necessarily a file on disk.
 		 */
-		parameters?: string;
+		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext, token: CancellationToken): NotebookData | Thenable<NotebookData>;
+
+		// todo@API use NotebookData instead
+		saveNotebook(document: NotebookDocument, token: CancellationToken): Thenable<void>;
+
+		// todo@API use NotebookData instead
+		saveNotebookAs(targetResource: Uri, document: NotebookDocument, token: CancellationToken): Thenable<void>;
+
+		// todo@API use NotebookData instead
+		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, token: CancellationToken): Thenable<NotebookDocumentBackup>;
+	}
+
+	export namespace workspace {
+
+		// TODO@api use NotebookDocumentFilter instead of just notebookType:string?
+		// TODO@API options duplicates the more powerful variant on NotebookContentProvider
+		export function registerNotebookContentProvider(notebookType: string, provider: NotebookContentProvider, options?: NotebookDocumentContentOptions): Disposable;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/106744, LiveShare
+
+	export interface NotebookRegistrationData {
+		displayName: string;
+		filenamePattern: (GlobPattern | { include: GlobPattern; exclude: GlobPattern; })[];
+		exclusive?: boolean;
+	}
+
+	export namespace workspace {
+		// SPECIAL overload with NotebookRegistrationData
+		export function registerNotebookContentProvider(notebookType: string, provider: NotebookContentProvider, options?: NotebookDocumentContentOptions, registrationData?: NotebookRegistrationData): Disposable;
+		// SPECIAL overload with NotebookRegistrationData
+		export function registerNotebookSerializer(notebookType: string, serializer: NotebookSerializer, options?: NotebookDocumentContentOptions, registration?: NotebookRegistrationData): Disposable;
+	}
+
+	//#endregion
+
+	//#region @https://github.com/microsoft/vscode/issues/123601, notebook messaging
+
+	export interface NotebookRendererMessage<T> {
+		/**
+		 * Editor that sent the message.
+		 */
+		editor: NotebookEditor;
 
 		/**
-		 * The fully qualified name, like package name or file path. Rendered after `signature`.
+		 * Message sent from the webview.
 		 */
-		qualifier?: string;
+		message: T;
+	}
+
+	/**
+	 * Renderer messaging is used to communicate with a single renderer. It's
+	 * returned from {@link notebooks.createRendererMessaging}.
+	 */
+	export interface NotebookRendererMessaging<TSend = any, TReceive = TSend> {
+		/**
+		 * Events that fires when a message is received from a renderer.
+		 */
+		onDidReceiveMessage: Event<NotebookRendererMessage<TReceive>>;
 
 		/**
-		 * The return-type of a function or type of a property/variable. Rendered rightmost.
+		 * Sends a message to the renderer.
+		 * @param editor Editor to target with the message
+		 * @param message Message to send
 		 */
-		type?: string;
+		postMessage(editor: NotebookEditor, message: TSend): void;
+	}
+
+	/**
+	 * Represents a script that is loaded into the notebook renderer before rendering output. This allows
+	 * to provide and share functionality for notebook markup and notebook output renderers.
+	 */
+	export class NotebookRendererScript {
+
+		/**
+		 * APIs that the preload provides to the renderer. These are matched
+		 * against the `dependencies` and `optionalDependencies` arrays in the
+		 * notebook renderer contribution point.
+		 */
+		provides: string[];
+
+		/**
+		 * URI for the file to preload
+		 */
+		uri: Uri;
+
+		/**
+		 * @param uri URI for the file to preload
+		 * @param provides Value for the `provides` property
+		 */
+		constructor(uri: Uri, provides?: string | string[]);
+	}
+
+	export interface NotebookController {
+
+		// todo@API allow add, not remove
+		readonly rendererScripts: NotebookRendererScript[];
+
+		/**
+		 * An event that fires when a {@link NotebookController.rendererScripts renderer script} has send a message to
+		 * the controller.
+		 */
+		readonly onDidReceiveMessage: Event<{ editor: NotebookEditor, message: any }>;
+
+		/**
+		 * Send a message to the renderer of notebook editors.
+		 *
+		 * Note that only editors showing documents that are bound to this controller
+		 * are receiving the message.
+		 *
+		 * @param message The message to send.
+		 * @param editor A specific editor to send the message to. When `undefined` all applicable editors are receiving the message.
+		 * @returns A promise that resolves to a boolean indicating if the message has been send or not.
+		 */
+		postMessage(message: any, editor?: NotebookEditor): Thenable<boolean>;
+
+		//todo@API validate this works
+		asWebviewUri(localResource: Uri): Uri;
+	}
+
+	export namespace notebooks {
+
+		export function createNotebookController(id: string, viewType: string, label: string, handler?: (cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController) => void | Thenable<void>, rendererScripts?: NotebookRendererScript[]): NotebookController;
+
+		/**
+		 * Creates a new messaging instance used to communicate with a specific
+		 * renderer. The renderer only has access to messaging if `requiresMessaging`
+		 * is set to `always` or `optional` in its `notebookRenderer ` contribution.
+		 *
+		 * @see https://github.com/microsoft/vscode/issues/123601
+		 * @param rendererId The renderer ID to communicate with
+		*/
+		// todo@API can ANY extension talk to renderer or is there a check that the calling extension
+		// declared the renderer in its package.json?
+		export function createRendererMessaging<TSend = any, TReceive = TSend>(rendererId: string): NotebookRendererMessaging<TSend, TReceive>;
 	}
 
 	//#endregion
@@ -1795,7 +1520,7 @@ declare module 'vscode' {
 		id?: string;
 
 		/**
-		 * The icon path or [ThemeIcon](#ThemeIcon) for the timeline item.
+		 * The icon path or {@link ThemeIcon} for the timeline item.
 		 */
 		iconPath?: Uri | { light: Uri; dark: Uri; } | ThemeIcon;
 
@@ -1810,7 +1535,7 @@ declare module 'vscode' {
 		detail?: string;
 
 		/**
-		 * The [command](#Command) that should be executed when the timeline item is selected.
+		 * The {@link Command} that should be executed when the timeline item is selected.
 		 */
 		command?: Command;
 
@@ -1848,7 +1573,7 @@ declare module 'vscode' {
 
 	export interface TimelineChangeEvent {
 		/**
-		 * The [uri](#Uri) of the resource for which the timeline changed.
+		 * The {@link Uri} of the resource for which the timeline changed.
 		 */
 		uri: Uri;
 
@@ -1868,7 +1593,7 @@ declare module 'vscode' {
 		};
 
 		/**
-		 * An array of [timeline items](#TimelineItem).
+		 * An array of {@link TimelineItem timeline items}.
 		 */
 		readonly items: readonly TimelineItem[];
 	}
@@ -1904,12 +1629,12 @@ declare module 'vscode' {
 		readonly label: string;
 
 		/**
-		 * Provide [timeline items](#TimelineItem) for a [Uri](#Uri).
+		 * Provide {@link TimelineItem timeline items} for a {@link Uri}.
 		 *
-		 * @param uri The [uri](#Uri) of the file to provide the timeline for.
+		 * @param uri The {@link Uri} of the file to provide the timeline for.
 		 * @param options A set of options to determine how results should be returned.
 		 * @param token A cancellation token.
-		 * @return The [timeline result](#TimelineResult) or a thenable that resolves to such. The lack of a result
+		 * @return The {@link TimelineResult timeline result} or a thenable that resolves to such. The lack of a result
 		 * can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideTimeline(uri: Uri, options: TimelineOptions, token: CancellationToken): ProviderResult<Timeline>;
@@ -1925,7 +1650,7 @@ declare module 'vscode' {
 		 *
 		 * @param scheme A scheme or schemes that defines which documents this provider is applicable to. Can be `*` to target all documents.
 		 * @param provider A timeline provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		*/
 		export function registerTimelineProvider(scheme: string | string[], provider: TimelineProvider): Disposable;
 	}
@@ -1947,9 +1672,90 @@ declare module 'vscode' {
 	}
 
 	export namespace languages {
-		export function getTokenInformationAtPosition(document: TextDocument, position: Position): Promise<TokenInformation>;
+		export function getTokenInformationAtPosition(document: TextDocument, position: Position): Thenable<TokenInformation>;
 	}
 
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/16221
+
+	// todo@API Split between Inlay- and OverlayHints (InlayHint are for a position, OverlayHints for a non-empty range)
+	// todo@API add "mini-markdown" for links and styles
+	// (done) remove description
+	// (done) rename to InlayHint
+	// (done)  add InlayHintKind with type, argument, etc
+
+	export namespace languages {
+		/**
+		 * Register a inlay hints provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An inlay hints provider.
+		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 */
+		export function registerInlayHintsProvider(selector: DocumentSelector, provider: InlayHintsProvider): Disposable;
+	}
+
+	export enum InlayHintKind {
+		Other = 0,
+		Type = 1,
+		Parameter = 2,
+	}
+
+	/**
+	 * Inlay hint information.
+	 */
+	export class InlayHint {
+		/**
+		 * The text of the hint.
+		 */
+		text: string;
+		/**
+		 * The position of this hint.
+		 */
+		position: Position;
+		/**
+		 * The kind of this hint.
+		 */
+		kind?: InlayHintKind;
+		/**
+		 * Whitespace before the hint.
+		 */
+		whitespaceBefore?: boolean;
+		/**
+		 * Whitespace after the hint.
+		 */
+		whitespaceAfter?: boolean;
+
+		// todo@API make range first argument
+		constructor(text: string, position: Position, kind?: InlayHintKind);
+	}
+
+	/**
+	 * The inlay hints provider interface defines the contract between extensions and
+	 * the inlay hints feature.
+	 */
+	export interface InlayHintsProvider {
+
+		/**
+		 * An optional event to signal that inlay hints have changed.
+		 * @see {@link EventEmitter}
+		 */
+		onDidChangeInlayHints?: Event<void>;
+
+		/**
+		 *
+		 * @param model The document in which the command was invoked.
+		 * @param range The range for which inlay hints should be computed.
+		 * @param token A cancellation token.
+		 * @return A list of inlay hints or a thenable that resolves to such.
+		 */
+		provideInlayHints(model: TextDocument, range: Range, token: CancellationToken): ProviderResult<InlayHint[]>;
+	}
 	//#endregion
 
 	//#region https://github.com/microsoft/vscode/issues/104436
@@ -1971,13 +1777,12 @@ declare module 'vscode' {
 
 	//#endregion
 
-
 	//#region https://github.com/microsoft/vscode/issues/102091
 
 	export interface TextDocument {
 
 		/**
-		 * The [notebook](#NotebookDocument) that contains this document as a notebook cell or `undefined` when
+		 * The {@link NotebookDocument notebook} that contains this document as a notebook cell or `undefined` when
 		 * the document is not contained by a notebook (this should be the more frequent case).
 		 */
 		notebook: NotebookDocument | undefined;
@@ -1985,38 +1790,44 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region https://github.com/microsoft/vscode/issues/107467
-	/*
-		General activation events:
-			- `onLanguage:*` most test extensions will want to activate when their
-				language is opened to provide code lenses.
-			- `onTests:*` new activation event very simiular to `workspaceContains`,
-				but only fired when the user wants to run tests or opens the test explorer.
-	*/
 	export namespace test {
 		/**
-		 * Registers a provider that discovers tests for the given document
-		 * selectors. It is activated when either tests need to be enumerated, or
-		 * a document matching the selector is opened.
+		 * Creates a new test controller.
+		 *
+		 * @param id Identifier for the controller, must be globally unique.
 		 */
-		export function registerTestProvider<T extends TestItem>(testProvider: TestProvider<T>): Disposable;
+		export function createTestController(id: string): TestController;
 
 		/**
-		 * Runs tests with the given options. If no options are given, then
-		 * all tests are run. Returns the resulting test run.
+		 * Requests that tests be run by their controller.
+		 * @param run Run options to use
+		 * @param token Cancellation token for the test run
 		 */
-		export function runTests<T extends TestItem>(options: TestRunOptions<T>): Thenable<void>;
+		export function runTests(run: TestRunRequest, token?: CancellationToken): Thenable<void>;
 
 		/**
-		 * Returns an observer that retrieves tests in the given workspace folder.
+		 * Returns an observer that watches and can request tests.
+		 * @stability experimental
 		 */
-		export function createWorkspaceTestObserver(workspaceFolder: WorkspaceFolder): TestObserver;
+		export function createTestObserver(): TestObserver;
 
 		/**
-		 * Returns an observer that retrieves tests in the given text document.
+		 * List of test results stored by the editor, sorted in descending
+		 * order by their `completedAt` time.
+		 * @stability experimental
 		 */
-		export function createDocumentTestObserver(document: TextDocument): TestObserver;
+		export const testResults: ReadonlyArray<TestRunResult>;
+
+		/**
+		 * Event that fires when the {@link testResults} array is updated.
+		 * @stability experimental
+		 */
+		export const onDidChangeTestResults: Event<void>;
 	}
 
+	/**
+	 * @stability experimental
+	 */
 	export interface TestObserver {
 		/**
 		 * List of tests returned by test provider for files in the workspace.
@@ -2028,26 +1839,19 @@ declare module 'vscode' {
 		 * null if a top-level test was added or removed. When fired, the consumer
 		 * should check the test item and all its children for changes.
 		 */
-		readonly onDidChangeTest: Event<TestChangeEvent>;
+		readonly onDidChangeTest: Event<TestsChangeEvent>;
 
 		/**
-		 * An event the fires when all test providers have signalled that the tests
-		 * the observer references have been discovered. Providers may continue to
-		 * watch for changes and cause {@link onDidChangeTest} to fire as files
-		 * change, until the observer is disposed.
-		 *
-		 * @todo as below
-		 */
-		readonly onDidDiscoverInitialTests: Event<void>;
-
-		/**
-		 * Dispose of the observer, allowing VS Code to eventually tell test
+		 * Dispose of the observer, allowing the editor to eventually tell test
 		 * providers that they no longer need to update tests.
 		 */
 		dispose(): void;
 	}
 
-	export interface TestChangeEvent {
+	/**
+	 * @stability experimental
+	 */
+	export interface TestsChangeEvent {
 		/**
 		 * List of all tests that are newly added.
 		 */
@@ -2062,104 +1866,192 @@ declare module 'vscode' {
 		 * List of existing tests that have been removed.
 		 */
 		readonly removed: ReadonlyArray<TestItem>;
-
-		/**
-		 * Highest node in the test tree under which changes were made. This can
-		 * be easily plugged into events like the TreeDataProvider update event.
-		 */
-		readonly commonChangeAncestor: TestItem | null;
 	}
 
 	/**
-	 * Tree of tests returned from the provide methods in the {@link TestProvider}.
+	 * Interface to discover and execute tests.
 	 */
-	export interface TestHierarchy<T extends TestItem> {
+	export interface TestController {
 		/**
-		 * Root node for tests. The `testRoot` instance must not be replaced over
-		 * the lifespan of the TestHierarchy, since you will need to reference it
-		 * in `onDidChangeTest` when a test is added or removed.
+		 * The ID of the controller, passed in {@link vscode.test.createTestController}
 		 */
-		readonly root: T;
+		readonly id: string;
 
 		/**
-		 * An event that fires when an existing test under the `root` changes.
-		 * This can be a result of a state change in a test run, a property update,
-		 * or an update to its children. Changes made to tests will not be visible
-		 * to {@link TestObserver} instances until this event is fired.
+		 * Root test item. Tests in the workspace should be added as children of
+		 * the root. The extension controls when to add these, although the
+		 * editor may request children using the {@link resolveChildrenHandler},
+		 * and the extension should add tests for a file when
+		 * {@link vscode.workspace.onDidOpenTextDocument} fires in order for
+		 * decorations for tests within the file to be visible.
 		 *
-		 * This will signal a change recursively to all children of the given node.
-		 * For example, firing the event with the {@link testRoot} will refresh
-		 * all tests.
+		 * Tests in this collection should be watched and updated by the extension
+		 * as files change. See  {@link resolveChildrenHandler} for details around
+		 * for the lifecycle of watches.
 		 */
-		readonly onDidChangeTest: Event<T>;
+		// todo@API a little weird? what is its label, id, busy state etc? Can I dispose this?
+		// todo@API allow createTestItem-calls without parent and simply treat them as root (similar to createSourceControlResourceGroup)
+		readonly root: TestItem;
 
 		/**
-		 * An event that should be fired when all tests that are currently defined
-		 * have been discovered. The provider should continue to watch for changes
-		 * and fire `onDidChangeTest` until the hierarchy is disposed.
+		 * Creates a new managed {@link TestItem} instance as a child of this
+		 * one.
+		 * @param id Unique identifier for the TestItem.
+		 * @param label Human-readable label of the test item.
+		 * @param parent Parent of the item. This is required; top-level items
+		 * should be created as children of the {@link root}.
+		 * @param uri URI this TestItem is associated with. May be a file or directory.
+		 * @param data Custom data to be stored in {@link TestItem.data}
+		 */
+		createTestItem(
+			id: string,
+			label: string,
+			parent: TestItem,
+			uri?: Uri,
+		): TestItem;
+
+
+		/**
+		 * A function provided by the extension that the editor may call to request
+		 * children of a test item, if the {@link TestItem.canExpand} is `true`.
+		 * When called, the item should discover children and call
+		 * {@link TestController.createTestItem} as children are discovered.
 		 *
-		 * @todo can this be covered by existing progress apis? Or return a promise
+		 * The item in the explorer will automatically be marked as "busy" until
+		 * the function returns or the returned thenable resolves.
+		 *
+		 * The controller may wish to set up listeners or watchers to update the
+		 * children as files and documents change.
+		 *
+		 * @param item An unresolved test item for which
+		 * children are being requested
 		 */
-		readonly onDidDiscoverInitialTests: Event<void>;
+		resolveChildrenHandler?: (item: TestItem) => Thenable<void> | void;
 
 		/**
-		 * Dispose will be called when there are no longer observers interested
-		 * in the hierarchy.
+		 * Starts a test run. When called, the controller should call
+		 * {@link TestController.createTestRun}. All tasks associated with the
+		 * run should be created before the function returns or the reutrned
+		 * promise is resolved.
+		 *
+		 * @param request Request information for the test run
+		 * @param cancellationToken Token that signals the used asked to abort the
+		 * test run. If cancellation is requested on this token, all {@link TestRun}
+		 * instances associated with the request will be
+		 * automatically cancelled as well.
+		 */
+		runHandler?: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void;
+		/**
+		 * Creates a {@link TestRun<T>}. This should be called by the
+		 * {@link TestRunner} when a request is made to execute tests, and may also
+		 * be called if a test run is detected externally. Once created, tests
+		 * that are included in the results will be moved into the
+		 * {@link TestResultState.Pending} state.
+		 *
+		 * @param request Test run request. Only tests inside the `include` may be
+		 * modified, and tests in its `exclude` are ignored.
+		 * @param name The human-readable name of the run. This can be used to
+		 * disambiguate multiple sets of results in a test run. It is useful if
+		 * tests are run across multiple platforms, for example.
+		 * @param persist Whether the results created by the run should be
+		 * persisted in the editor. This may be false if the results are coming from
+		 * a file already saved externally, such as a coverage information file.
+		 */
+		createTestRun(request: TestRunRequest, name?: string, persist?: boolean): TestRun;
+
+		/**
+		 * Unregisters the test controller, disposing of its associated tests
+		 * and unpersisted results.
 		 */
 		dispose(): void;
 	}
 
 	/**
-	 * Discovers and provides tests. It's expected that the TestProvider will
-	 * ambiently listen to {@link vscode.window.onDidChangeVisibleTextEditors} to
-	 * provide test information about the open files for use in code lenses and
-	 * other file-specific UI.
-	 *
-	 * Additionally, the UI may request it to discover tests for the workspace
-	 * via `addWorkspaceTests`.
-	 *
-	 * @todo rename from provider
+	 * Options given to {@link test.runTests}.
 	 */
-	export interface TestProvider<T extends TestItem = TestItem> {
+	export class TestRunRequest {
 		/**
-		 * Requests that tests be provided for the given workspace. This will
-		 * generally be called when tests need to be enumerated for the
-		 * workspace.
-		 *
-		 * It's guaranteed that this method will not be called again while
-		 * there is a previous undisposed watcher for the given workspace folder.
+		 * Array of specific tests to run. The controllers should run all of the
+		 * given tests and all children of the given tests, excluding any tests
+		 * that appear in {@link TestRunRequest.exclude}.
 		 */
-		createWorkspaceTestHierarchy?(workspace: WorkspaceFolder): TestHierarchy<T>;
+		tests: TestItem[];
 
 		/**
-		 * Requests that tests be provided for the given document. This will
-		 * be called when tests need to be enumerated for a single open file,
-		 * for instance by code lens UI.
+		 * An array of tests the user has marked as excluded in the editor. May be
+		 * omitted if no exclusions were requested. Test controllers should not run
+		 * excluded tests or any children of excluded tests.
 		 */
-		createDocumentTestHierarchy?(document: TextDocument): TestHierarchy<T>;
+		exclude?: TestItem[];
 
 		/**
-		 * Starts a test run. This should cause {@link onDidChangeTest} to
-		 * fire with update test states during the run.
-		 * @todo this will eventually need to be able to return a summary report, coverage for example.
+		 * Whether tests in this run should be debugged.
 		 */
-		runTests?(options: TestRunOptions<T>, cancellationToken: CancellationToken): ProviderResult<void>;
+		debug: boolean;
+
+		/**
+		 * @param tests Array of specific tests to run.
+		 * @param exclude Tests to exclude from the run
+		 * @param debug Whether tests in this run should be debugged.
+		 */
+		constructor(tests: readonly TestItem[], exclude?: readonly TestItem[], debug?: boolean);
 	}
 
 	/**
-	 * Options given to `TestProvider.runTests`
+	 * Options given to {@link TestController.runTests}
 	 */
-	export interface TestRunOptions<T extends TestItem = TestItem> {
+	export interface TestRun {
 		/**
-		 * Array of specific tests to run. The {@link TestProvider.testRoot} may
-		 * be provided as an indication to run all tests.
+		 * The human-readable name of the run. This can be used to
+		 * disambiguate multiple sets of results in a test run. It is useful if
+		 * tests are run across multiple platforms, for example.
 		 */
-		tests: T[];
+		readonly name?: string;
 
 		/**
-		 * Whether or not tests in this run should be debugged.
+		 * A cancellation token which will be triggered when the test run is
+		 * canceled from the UI.
 		 */
-		debug: boolean;
+		readonly token: CancellationToken;
+
+		/**
+		 * Updates the state of the test in the run. Calling with method with nodes
+		 * outside the {@link TestRunRequest.tests} or in the
+		 * {@link TestRunRequest.exclude} array will no-op.
+		 *
+		 * @param test The test to update
+		 * @param state The state to assign to the test
+		 * @param duration Optionally sets how long the test took to run, in milliseconds
+		 */
+		//todo@API is this "update" state or set final state? should this be called setTestResult?
+		setState(test: TestItem, state: TestResultState, duration?: number): void;
+
+		/**
+		 * Appends a message, such as an assertion error, to the test item.
+		 *
+		 * Calling with method with nodes outside the {@link TestRunRequest.tests}
+		 * or in the {@link TestRunRequest.exclude} array will no-op.
+		 *
+		 * @param test The test to update
+		 * @param message The message to add
+		 */
+		appendMessage(test: TestItem, message: TestMessage): void;
+
+		/**
+		 * Appends raw output from the test runner. On the user's request, the
+		 * output will be displayed in a terminal. ANSI escape sequences,
+		 * such as colors and text styles, are supported.
+		 *
+		 * @param output Output text to append
+		 * @param associateTo Optionally, associate the given segment of output
+		 */
+		appendOutput(output: string): void;
+
+		/**
+		 * Signals that the end of the test run. Any tests whose states have not
+		 * been updated will be moved into the {@link TestResultState.Unset} state.
+		 */
+		end(): void;
 	}
 
 	/**
@@ -2167,6 +2059,47 @@ declare module 'vscode' {
 	 * both a suite and a test, since they have almost or identical capabilities.
 	 */
 	export interface TestItem {
+		/**
+		 * Unique identifier for the TestItem. This is used to correlate
+		 * test results and tests in the document with those in the workspace
+		 * (test explorer). This must not change for the lifetime of the TestItem.
+		 */
+		readonly id: string;
+
+		/**
+		 * URI this TestItem is associated with. May be a file or directory.
+		 */
+		readonly uri?: Uri;
+
+		/**
+		 * A mapping of children by ID to the associated TestItem instances.
+		 */
+		//todo@API use array over es6-map
+		readonly children: ReadonlyMap<string, TestItem>;
+
+		/**
+		 * The parent of this item, given in {@link TestController.createTestItem}.
+		 * This is undefined only for the {@link TestController.root}.
+		 */
+		readonly parent?: TestItem;
+
+		/**
+		 * Indicates whether this test item may have children discovered by resolving.
+		 * If so, it will be shown as expandable in the Test Explorer  view, and
+		 * expanding the item will cause {@link TestController.resolveChildrenHandler}
+		 * to be invoked with the item.
+		 *
+		 * Default to false.
+		 */
+		canResolveChildren: boolean;
+
+		/**
+		 * Controls whether the item is shown as "busy" in the Test Explorer view.
+		 * This is useful for showing status while discovering children. Defaults
+		 * to false.
+		 */
+		busy: boolean;
+
 		/**
 		 * Display name describing the test case.
 		 */
@@ -2178,80 +2111,64 @@ declare module 'vscode' {
 		description?: string;
 
 		/**
-		 * Whether this test item can be run individually, defaults to `true`
-		 * if not provided.
+		 * Location of the test item in its `uri`. This is only meaningful if the
+		 * `uri` points to a file.
+		 */
+		range?: Range;
+
+		/**
+		 * May be set to an error associated with loading the test. Note that this
+		 * is not a test result and should only be used to represent errors in
+		 * discovery, such as syntax errors.
+		 */
+		error?: string | MarkdownString;
+
+		/**
+		 * Whether this test item can be run by providing it in the
+		 * {@link TestRunRequest.tests} array. Defaults to `true`.
+		 */
+		runnable: boolean;
+
+		/**
+		 * Whether this test item can be debugged by providing it in the
+		 * {@link TestRunRequest.tests} array. Defaults to `false`.
+		 */
+		debuggable: boolean;
+
+		/**
+		 * Marks the test as outdated. This can happen as a result of file changes,
+		 * for example. In "auto run" mode, tests that are outdated will be
+		 * automatically rerun after a short delay. Invoking this on a
+		 * test with children will mark the entire subtree as outdated.
 		 *
-		 * In some cases, like Go's tests, test can have children but these
-		 * children cannot be run independently.
+		 * Extensions should generally not override this method.
 		 */
-		runnable?: boolean;
+		invalidateResults(): void;
 
 		/**
-		 * Whether this test item can be debugged. Defaults to `false` if not provided.
+		 * Removes the test and its children from the tree.
 		 */
-		debuggable?: boolean;
-
-		/**
-		 * VS Code location.
-		 */
-		location?: Location;
-
-		/**
-		 * Optional list of nested tests for this item.
-		 */
-		children?: TestItem[];
-
-		/**
-		 * Test run state. Will generally be {@link TestRunState.Unset} by
-		 * default.
-		 */
-		state: TestState;
-	}
-
-	export enum TestRunState {
-		// Initial state
-		Unset = 0,
-		// Test is currently running
-		Running = 1,
-		// Test run has passed
-		Passed = 2,
-		// Test run has failed (on an assertion)
-		Failed = 3,
-		// Test run has been skipped
-		Skipped = 4,
-		// Test run failed for some other reason (compilation error, timeout, etc)
-		Errored = 5
+		dispose(): void;
 	}
 
 	/**
-	 * TestState includes a test and its run state. This is included in the
-	 * {@link TestItem} and is immutable; it should be replaced in th TestItem
-	 * in order to update it. This allows consumers to quickly and easily check
-	 * for changes via object identity.
+	 * Possible states of tests in a test run.
 	 */
-	export class TestState {
-		/**
-		 * Current state of the test.
-		 */
-		readonly runState: TestRunState;
-
-		/**
-		 * Optional duration of the test run, in milliseconds.
-		 */
-		readonly duration?: number;
-
-		/**
-		 * Associated test run message. Can, for example, contain assertion
-		 * failure information if the test fails.
-		 */
-		readonly messages: ReadonlyArray<Readonly<TestMessage>>;
-
-		/**
-		 * @param state Run state to hold in the test state
-		 * @param messages List of associated messages for the test
-		 * @param duration Length of time the test run took, if appropriate.
-		 */
-		constructor(runState: TestRunState, messages?: TestMessage[], duration?: number);
+	export enum TestResultState {
+		// Initial state
+		Unset = 0,
+		// Test will be run, but is not currently running.
+		Queued = 1,
+		// Test is currently running
+		Running = 2,
+		// Test run has passed
+		Passed = 3,
+		// Test run has failed (on an assertion)
+		Failed = 4,
+		// Test run has been skipped
+		Skipped = 5,
+		// Test run failed for some other reason (compilation error, timeout, etc)
+		Errored = 6
 	}
 
 	/**
@@ -2268,24 +2185,24 @@ declare module 'vscode' {
 	 * Message associated with the test state. Can be linked to a specific
 	 * source range -- useful for assertion failures, for example.
 	 */
-	export interface TestMessage {
+	export class TestMessage {
 		/**
 		 * Human-readable message text to display.
 		 */
 		message: string | MarkdownString;
 
 		/**
-		 * Message severity. Defaults to "Error", if not provided.
+		 * Message severity. Defaults to "Error".
 		 */
-		severity?: TestMessageSeverity;
+		severity: TestMessageSeverity;
 
 		/**
-		 * Expected test output. If given with `actual`, a diff view will be shown.
+		 * Expected test output. If given with `actualOutput`, a diff view will be shown.
 		 */
 		expectedOutput?: string;
 
 		/**
-		 * Actual test output. If given with `actual`, a diff view will be shown.
+		 * Actual test output. If given with `expectedOutput`, a diff view will be shown.
 		 */
 		actualOutput?: string;
 
@@ -2293,29 +2210,745 @@ declare module 'vscode' {
 		 * Associated file location.
 		 */
 		location?: Location;
+
+		/**
+		 * Creates a new TestMessage that will present as a diff in the editor.
+		 * @param message Message to display to the user.
+		 * @param expected Expected output.
+		 * @param actual Actual output.
+		 */
+		static diff(message: string | MarkdownString, expected: string, actual: string): TestMessage;
+
+		/**
+		 * Creates a new TestMessage instance.
+		 * @param message The message to show to the user.
+		 */
+		constructor(message: string | MarkdownString);
+	}
+
+	/**
+	 * TestResults can be provided to the editor in {@link test.publishTestResult},
+	 * or read from it in {@link test.testResults}.
+	 *
+	 * The results contain a 'snapshot' of the tests at the point when the test
+	 * run is complete. Therefore, information such as its {@link Range} may be
+	 * out of date. If the test still exists in the workspace, consumers can use
+	 * its `id` to correlate the result instance with the living test.
+	 *
+	 * @todo coverage and other info may eventually be provided here
+	 */
+	export interface TestRunResult {
+		/**
+		 * Unix milliseconds timestamp at which the test run was completed.
+		 */
+		completedAt: number;
+
+		/**
+		 * Optional raw output from the test run.
+		 */
+		output?: string;
+
+		/**
+		 * List of test results. The items in this array are the items that
+		 * were passed in the {@link test.runTests} method.
+		 */
+		results: ReadonlyArray<Readonly<TestResultSnapshot>>;
+	}
+
+	/**
+	 * A {@link TestItem}-like interface with an associated result, which appear
+	 * or can be provided in {@link TestResult} interfaces.
+	 */
+	export interface TestResultSnapshot {
+		/**
+		 * Unique identifier that matches that of the associated TestItem.
+		 * This is used to correlate test results and tests in the document with
+		 * those in the workspace (test explorer).
+		 */
+		readonly id: string;
+
+		/**
+		 * URI this TestItem is associated with. May be a file or file.
+		 */
+		readonly uri?: Uri;
+
+		/**
+		 * Display name describing the test case.
+		 */
+		readonly label: string;
+
+		/**
+		 * Optional description that appears next to the label.
+		 */
+		readonly description?: string;
+
+		/**
+		 * Location of the test item in its `uri`. This is only meaningful if the
+		 * `uri` points to a file.
+		 */
+		readonly range?: Range;
+
+		/**
+		 * State of the test in each task. In the common case, a test will only
+		 * be executed in a single task and the length of this array will be 1.
+		 */
+		readonly taskStates: ReadonlyArray<TestSnapshoptTaskState>;
+
+		/**
+		 * Optional list of nested tests for this item.
+		 */
+		readonly children: Readonly<TestResultSnapshot>[];
+	}
+
+	export interface TestSnapshoptTaskState {
+		/**
+		 * Current result of the test.
+		 */
+		readonly state: TestResultState;
+
+		/**
+		 * The number of milliseconds the test took to run. This is set once the
+		 * `state` is `Passed`, `Failed`, or `Errored`.
+		 */
+		readonly duration?: number;
+
+		/**
+		 * Associated test run message. Can, for example, contain assertion
+		 * failure information if the test fails.
+		 */
+		readonly messages: ReadonlyArray<TestMessage>;
+	}
+
+	//#endregion
+
+	//#region Opener service (https://github.com/microsoft/vscode/issues/109277)
+
+	/**
+	 * Details if an `ExternalUriOpener` can open a uri.
+	 *
+	 * The priority is also used to rank multiple openers against each other and determine
+	 * if an opener should be selected automatically or if the user should be prompted to
+	 * select an opener.
+	 *
+	 * The editor will try to use the best available opener, as sorted by `ExternalUriOpenerPriority`.
+	 * If there are multiple potential "best" openers for a URI, then the user will be prompted
+	 * to select an opener.
+	 */
+	export enum ExternalUriOpenerPriority {
+		/**
+		 * The opener is disabled and will never be shown to users.
+		 *
+		 * Note that the opener can still be used if the user specifically
+		 * configures it in their settings.
+		 */
+		None = 0,
+
+		/**
+		 * The opener can open the uri but will not cause a prompt on its own
+		 * since the editor always contributes a built-in `Default` opener.
+		 */
+		Option = 1,
+
+		/**
+		 * The opener can open the uri.
+		 *
+		 * The editor's built-in opener has `Default` priority. This means that any additional `Default`
+		 * openers will cause the user to be prompted to select from a list of all potential openers.
+		 */
+		Default = 2,
+
+		/**
+		 * The opener can open the uri and should be automatically selected over any
+		 * default openers, include the built-in one from the editor.
+		 *
+		 * A preferred opener will be automatically selected if no other preferred openers
+		 * are available. If multiple preferred openers are available, then the user
+		 * is shown a prompt with all potential openers (not just preferred openers).
+		 */
+		Preferred = 3,
+	}
+
+	/**
+	 * Handles opening uris to external resources, such as http(s) links.
+	 *
+	 * Extensions can implement an `ExternalUriOpener` to open `http` links to a webserver
+	 * inside of the editor instead of having the link be opened by the web browser.
+	 *
+	 * Currently openers may only be registered for `http` and `https` uris.
+	 */
+	export interface ExternalUriOpener {
+
+		/**
+		 * Check if the opener can open a uri.
+		 *
+		 * @param uri The uri being opened. This is the uri that the user clicked on. It has
+		 * not yet gone through port forwarding.
+		 * @param token Cancellation token indicating that the result is no longer needed.
+		 *
+		 * @return Priority indicating if the opener can open the external uri.
+		 */
+		canOpenExternalUri(uri: Uri, token: CancellationToken): ExternalUriOpenerPriority | Thenable<ExternalUriOpenerPriority>;
+
+		/**
+		 * Open a uri.
+		 *
+		 * This is invoked when:
+		 *
+		 * - The user clicks a link which does not have an assigned opener. In this case, first `canOpenExternalUri`
+		 *   is called and if the user selects this opener, then `openExternalUri` is called.
+		 * - The user sets the default opener for a link in their settings and then visits a link.
+		 *
+		 * @param resolvedUri The uri to open. This uri may have been transformed by port forwarding, so it
+		 * may not match the original uri passed to `canOpenExternalUri`. Use `ctx.originalUri` to check the
+		 * original uri.
+		 * @param ctx Additional information about the uri being opened.
+		 * @param token Cancellation token indicating that opening has been canceled.
+		 *
+		 * @return Thenable indicating that the opening has completed.
+		 */
+		openExternalUri(resolvedUri: Uri, ctx: OpenExternalUriContext, token: CancellationToken): Thenable<void> | void;
+	}
+
+	/**
+	 * Additional information about the uri being opened.
+	 */
+	interface OpenExternalUriContext {
+		/**
+		 * The uri that triggered the open.
+		 *
+		 * This is the original uri that the user clicked on or that was passed to `openExternal.`
+		 * Due to port forwarding, this may not match the `resolvedUri` passed to `openExternalUri`.
+		 */
+		readonly sourceUri: Uri;
+	}
+
+	/**
+	 * Additional metadata about a registered `ExternalUriOpener`.
+	 */
+	interface ExternalUriOpenerMetadata {
+
+		/**
+		 * List of uri schemes the opener is triggered for.
+		 *
+		 * Currently only `http` and `https` are supported.
+		 */
+		readonly schemes: readonly string[]
+
+		/**
+		 * Text displayed to the user that explains what the opener does.
+		 *
+		 * For example, 'Open in browser preview'
+		 */
+		readonly label: string;
+	}
+
+	namespace window {
+		/**
+		 * Register a new `ExternalUriOpener`.
+		 *
+		 * When a uri is about to be opened, an `onOpenExternalUri:SCHEME` activation event is fired.
+		 *
+		 * @param id Unique id of the opener, such as `myExtension.browserPreview`. This is used in settings
+		 *   and commands to identify the opener.
+		 * @param opener Opener to register.
+		 * @param metadata Additional information about the opener.
+		 *
+		* @returns Disposable that unregisters the opener.
+		*/
+		export function registerExternalUriOpener(id: string, opener: ExternalUriOpener, metadata: ExternalUriOpenerMetadata): Disposable;
+	}
+
+	interface OpenExternalOptions {
+		/**
+		 * Allows using openers contributed by extensions through  `registerExternalUriOpener`
+		 * when opening the resource.
+		 *
+		 * If `true`, the editor will check if any contributed openers can handle the
+		 * uri, and fallback to the default opener behavior.
+		 *
+		 * If it is string, this specifies the id of the `ExternalUriOpener`
+		 * that should be used if it is available. Use `'default'` to force the editor's
+		 * standard external opener to be used.
+		 */
+		readonly allowContributedOpeners?: boolean | string;
+	}
+
+	namespace env {
+		export function openExternal(target: Uri, options?: OpenExternalOptions): Thenable<boolean>;
+	}
+
+	//#endregion
+
+	//#region https://github.com/Microsoft/vscode/issues/15178
+
+	// TODO@API must be a class
+	export interface OpenEditorInfo {
+		name: string;
+		resource: Uri;
+		isActive: boolean;
+	}
+
+	export namespace window {
+		export const openEditors: ReadonlyArray<OpenEditorInfo>;
+
+		// todo@API proper event type
+		export const onDidChangeOpenEditors: Event<void>;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/120173
+	/**
+	 * The object describing the properties of the workspace trust request
+	 */
+	export interface WorkspaceTrustRequestOptions {
+		/**
+		 * Custom message describing the user action that requires workspace
+		 * trust. If omitted, a generic message will be displayed in the workspace
+		 * trust request dialog.
+		 */
+		readonly message?: string;
+	}
+
+	export namespace workspace {
+		/**
+		 * Prompt the user to chose whether to trust the current workspace
+		 * @param options Optional object describing the properties of the
+		 * workspace trust request.
+		 */
+		export function requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Thenable<boolean | undefined>;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/115616 @alexr00
+	export enum PortAutoForwardAction {
+		Notify = 1,
+		OpenBrowser = 2,
+		OpenPreview = 3,
+		Silent = 4,
+		Ignore = 5,
+		OpenBrowserOnce = 6
+	}
+
+	export class PortAttributes {
+		/**
+		 * The port number associated with this this set of attributes.
+		 */
+		port: number;
+
+		/**
+		 * The action to be taken when this port is detected for auto forwarding.
+		 */
+		autoForwardAction: PortAutoForwardAction;
+
+		/**
+		 * Creates a new PortAttributes object
+		 * @param port the port number
+		 * @param autoForwardAction the action to take when this port is detected
+		 */
+		constructor(port: number, autoForwardAction: PortAutoForwardAction);
+	}
+
+	export interface PortAttributesProvider {
+		/**
+		 * Provides attributes for the given port. For ports that your extension doesn't know about, simply
+		 * return undefined. For example, if `providePortAttributes` is called with ports 3000 but your
+		 * extension doesn't know anything about 3000 you should return undefined.
+		 */
+		providePortAttributes(port: number, pid: number | undefined, commandLine: string | undefined, token: CancellationToken): ProviderResult<PortAttributes>;
+	}
+
+	export namespace workspace {
+		/**
+		 * If your extension listens on ports, consider registering a PortAttributesProvider to provide information
+		 * about the ports. For example, a debug extension may know about debug ports in it's debuggee. By providing
+		 * this information with a PortAttributesProvider the extension can tell the editor that these ports should be
+		 * ignored, since they don't need to be user facing.
+		 *
+		 * @param portSelector If registerPortAttributesProvider is called after you start your process then you may already
+		 * know the range of ports or the pid of your process. All properties of a the portSelector must be true for your
+		 * provider to get called.
+		 * The `portRange` is start inclusive and end exclusive.
+		 * @param provider The PortAttributesProvider
+		 */
+		export function registerPortAttributesProvider(portSelector: { pid?: number, portRange?: [number, number], commandMatcher?: RegExp }, provider: PortAttributesProvider): Disposable;
 	}
 	//#endregion
 
-	//#region Statusbar Item Background Color (https://github.com/microsoft/vscode/issues/110214)
+	//#region https://github.com/microsoft/vscode/issues/119904 @eamodio
+
+	export interface SourceControlInputBox {
+
+		/**
+		 * Sets focus to the input.
+		 */
+		focus(): void;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/124024 @hediet @alexdima
+
+	export namespace languages {
+		/**
+		 * Registers an inline completion provider.
+		 */
+		export function registerInlineCompletionItemProvider(selector: DocumentSelector, provider: InlineCompletionItemProvider): Disposable;
+	}
+
+	export interface InlineCompletionItemProvider<T extends InlineCompletionItem = InlineCompletionItem> {
+		/**
+		 * Provides inline completion items for the given position and document.
+		 * If inline completions are enabled, this method will be called whenever the user stopped typing.
+		 * It will also be called when the user explicitly triggers inline completions or asks for the next or previous inline completion.
+		 * Use `context.triggerKind` to distinguish between these scenarios.
+		*/
+		provideInlineCompletionItems(document: TextDocument, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletionList<T> | T[]>;
+	}
+
+	export interface InlineCompletionContext {
+		/**
+		 * How the completion was triggered.
+		 */
+		readonly triggerKind: InlineCompletionTriggerKind;
+	}
 
 	/**
-	 * A status bar item is a status bar contribution that can
-	 * show text and icons and run a command on click.
+	 * How an {@link InlineCompletionItemProvider inline completion provider} was triggered.
 	 */
+	export enum InlineCompletionTriggerKind {
+		/**
+		 * Completion was triggered automatically while editing.
+		 * It is sufficient to return a single completion item in this case.
+		 */
+		Automatic = 0,
+
+		/**
+		 * Completion was triggered explicitly by a user gesture.
+		 * Return multiple completion items to enable cycling through them.
+		 */
+		Explicit = 1,
+	}
+
+	export class InlineCompletionList<T extends InlineCompletionItem = InlineCompletionItem> {
+		items: T[];
+
+		constructor(items: T[]);
+	}
+
+	export class InlineCompletionItem {
+		/**
+		 * The text to insert.
+		 * If the text contains a line break, the range must end at the end of a line.
+		 * If existing text should be replaced, the existing text must be a prefix of the text to insert.
+		*/
+		text: string;
+
+		/**
+		 * The range to replace.
+		 * Must begin and end on the same line.
+		 *
+		 * Prefer replacements over insertions to avoid cache invalidation.
+		 * Instead of reporting a completion that extends a word,
+		 * the whole word should be replaced with the extended word.
+		*/
+		range?: Range;
+
+		/**
+		 * An optional {@link Command} that is executed *after* inserting this completion.
+		 */
+		command?: Command;
+
+		constructor(text: string, range?: Range, command?: Command);
+	}
+
+
+	/**
+	 * Be aware that this API will not ever be finalized.
+	 */
+	export namespace window {
+		export function getInlineCompletionItemController<T extends InlineCompletionItem>(provider: InlineCompletionItemProvider<T>): InlineCompletionController<T>;
+	}
+
+	/**
+	 * Be aware that this API will not ever be finalized.
+	 */
+	export interface InlineCompletionController<T extends InlineCompletionItem> {
+		/**
+		 * Is fired when an inline completion item is shown to the user.
+		 */
+		// eslint-disable-next-line vscode-dts-event-naming
+		readonly onDidShowCompletionItem: Event<InlineCompletionItemDidShowEvent<T>>;
+	}
+
+	/**
+	 * Be aware that this API will not ever be finalized.
+	 */
+	export interface InlineCompletionItemDidShowEvent<T extends InlineCompletionItem> {
+		completionItem: T;
+	}
+
+	//#endregion
+
+	//#region FileSystemProvider stat readonly - https://github.com/microsoft/vscode/issues/73122
+
+	export enum FilePermission {
+		/**
+		 * The file is readonly.
+		 *
+		 * *Note:* All `FileStat` from a `FileSystemProvider` that is registered  with
+		 * the option `isReadonly: true` will be implicitly handled as if `FilePermission.Readonly`
+		 * is set. As a consequence, it is not possible to have a readonly file system provider
+		 * registered where some `FileStat` are not readonly.
+		 */
+		Readonly = 1
+	}
+
+	/**
+	 * The `FileStat`-type represents metadata about a file
+	 */
+	export interface FileStat {
+
+		/**
+		 * The permissions of the file, e.g. whether the file is readonly.
+		 *
+		 * *Note:* This value might be a bitmask, e.g. `FilePermission.Readonly | FilePermission.Other`.
+		 */
+		permissions?: FilePermission;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/126258 @aeschli
+
 	export interface StatusBarItem {
 
 		/**
-		 * The background color for this entry.
-		 *
-		 * Note: the supported colors for background are currently limited to
-		 * `ThemeColors` with id `statusBarItem.errorBackground`. Other `ThemeColors`
-		 * will be ignored.
-		 *
-		 * When setting the background color to `statusBarItem.errorBackground`, it is
-		 * recommended to also set `color` to `statusBarItem.errorForeground`.
+		 * Will be merged into StatusBarItem#tooltip
 		 */
-		backgroundColor: ThemeColor | undefined;
+		tooltip2: string | MarkdownString | undefined;
+
 	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/126280 @mjbvz
+
+	export interface NotebookCellData {
+		/**
+		 * Mime type determines how the cell's `value` is interpreted.
+		 *
+		 * The mime selects which notebook renders is used to render the cell.
+		 *
+		 * If not set, internally the cell is treated as having a mime type of `text/plain`.
+		 * Cells that set `language` to `markdown` instead are treated as `text/markdown`.
+		 */
+		mime?: string;
+	}
+
+	export interface NotebookCell {
+		/**
+		 * Mime type determines how the markup cell's `value` is interpreted.
+		 *
+		 * The mime selects which notebook renders is used to render the cell.
+		 *
+		 * If not set, internally the cell is treated as having a mime type of `text/plain`.
+		 * Cells that set `language` to `markdown` instead are treated as `text/markdown`.
+		 */
+		mime: string | undefined;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/123713 @connor4312
+	export interface TestRun {
+		/**
+		 * Test coverage provider for this result. An extension can defer setting
+		 * this until after a run is complete and coverage is available.
+		 */
+		coverageProvider?: TestCoverageProvider
+		// ...
+	}
+
+	/**
+	 * Provides information about test coverage for a test result.
+	 * Methods on the provider will not be called until the test run is complete
+	 */
+	export interface TestCoverageProvider<T extends FileCoverage = FileCoverage> {
+		/**
+		 * Returns coverage information for all files involved in the test run.
+		 * @param token A cancellation token.
+		 * @return Coverage metadata for all files involved in the test.
+		 */
+		provideFileCoverage(token: CancellationToken): ProviderResult<T[]>;
+
+		/**
+		 * Give a FileCoverage to fill in more data, namely {@link FileCoverage.detailedCoverage}.
+		 * The editor will only resolve a FileCoverage once, and onyl if detailedCoverage
+		 * is undefined.
+		 *
+		 * @param coverage A coverage object obtained from {@link provideFileCoverage}
+		 * @param token A cancellation token.
+		 * @return The resolved file coverage, or a thenable that resolves to one. It
+		 * is OK to return the given `coverage`. When no result is returned, the
+		 * given `coverage` will be used.
+		 */
+		resolveFileCoverage?(coverage: T, token: CancellationToken): ProviderResult<T>;
+	}
+
+	/**
+	 * A class that contains information about a covered resource. A count can
+	 * be give for lines, branches, and functions in a file.
+	 */
+	export class CoveredCount {
+		/**
+		 * Number of items covered in the file.
+		 */
+		covered: number;
+		/**
+		 * Total number of covered items in the file.
+		 */
+		total: number;
+
+		/**
+		 * @param covered Value for {@link CovereredCount.covered}
+		 * @param total Value for {@link CovereredCount.total}
+		 */
+		constructor(covered: number, total: number);
+	}
+
+	/**
+	 * Contains coverage metadata for a file.
+	 */
+	export class FileCoverage {
+		/**
+		 * File URI.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * Statement coverage information. If the reporter does not provide statement
+		 * coverage information, this can instead be used to represent line coverage.
+		 */
+		statementCoverage: CoveredCount;
+
+		/**
+		 * Branch coverage information.
+		 */
+		branchCoverage?: CoveredCount;
+
+		/**
+		 * Function coverage information.
+		 */
+		functionCoverage?: CoveredCount;
+
+		/**
+		 * Detailed, per-statement coverage. If this is undefined, the editor will
+		 * call {@link TestCoverageProvider.resolveFileCoverage} when necessary.
+		 */
+		detailedCoverage?: DetailedCoverage[];
+
+		/**
+		 * Creates a {@link FileCoverage} instance with counts filled in from
+		 * the coverage details.
+		 * @param uri Covered file URI
+		 * @param detailed Detailed coverage information
+		 */
+		static fromDetails(uri: Uri, details: readonly DetailedCoverage[]): FileCoverage;
+
+		/**
+		 * @param uri Covered file URI
+		 * @param statementCoverage Statement coverage information. If the reporter
+		 * does not provide statement coverage information, this can instead be
+		 * used to represent line coverage.
+		 * @param branchCoverage Branch coverage information
+		 * @param functionCoverage Function coverage information
+		 */
+		constructor(
+			uri: Uri,
+			statementCoverage: CoveredCount,
+			branchCoverage?: CoveredCount,
+			functionCoverage?: CoveredCount,
+		);
+	}
+
+	/**
+	 * Contains coverage information for a single statement or line.
+	 */
+	export class StatementCoverage {
+		/**
+		 * The number of times this statement was executed. If zero, the
+		 * statement will be marked as un-covered.
+		 */
+		executionCount: number;
+
+		/**
+		 * Statement location.
+		 */
+		location: Position | Range;
+
+		/**
+		 * Coverage from branches of this line or statement. If it's not a
+		 * conditional, this will be empty.
+		 */
+		branches: BranchCoverage[];
+
+		/**
+		 * @param location The statement position.
+		 * @param executionCount The number of times this statement was
+		 * executed. If zero, the statement will be marked as un-covered.
+		 * @param branches Coverage from branches of this line.  If it's not a
+		 * conditional, this should be omitted.
+		 */
+		constructor(executionCount: number, location: Position | Range, branches?: BranchCoverage[]);
+	}
+
+	/**
+	 * Contains coverage information for a branch of a {@link StatementCoverage}.
+	 */
+	export class BranchCoverage {
+		/**
+		 * The number of times this branch was executed. If zero, the
+		 * branch will be marked as un-covered.
+		 */
+		executionCount: number;
+
+		/**
+		 * Branch location.
+		 */
+		location?: Position | Range;
+
+		/**
+		 * @param executionCount The number of times this branch was executed.
+		 * @param location The branch position.
+		 */
+		constructor(executionCount: number, location?: Position | Range);
+	}
+
+	/**
+	 * Contains coverage information for a function or method.
+	 */
+	export class FunctionCoverage {
+		/**
+		 * The number of times this function was executed. If zero, the
+		 * function will be marked as un-covered.
+		 */
+		executionCount: number;
+
+		/**
+		 * Function location.
+		 */
+		location: Position | Range;
+
+		/**
+		 * @param executionCount The number of times this function was executed.
+		 * @param location The function position.
+		 */
+		constructor(executionCount: number, location: Position | Range);
+	}
+
+	export type DetailedCoverage = StatementCoverage | FunctionCoverage;
 
 	//#endregion
 }

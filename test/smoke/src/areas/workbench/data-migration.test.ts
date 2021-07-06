@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, ApplicationOptions } from '../../../../automation';
+import { Application, ApplicationOptions, Quality } from '../../../../automation';
 import { join } from 'path';
 
 export function setup(stableCodePath: string, testDataPath: string) {
@@ -19,6 +19,7 @@ export function setup(stableCodePath: string, testDataPath: string) {
 			const stableOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
 			stableOptions.codePath = stableCodePath;
 			stableOptions.userDataDir = userDataDir;
+			stableOptions.quality = Quality.Stable;
 
 			const stableApp = new Application(stableOptions);
 			await stableApp!.start();
@@ -58,6 +59,7 @@ export function setup(stableCodePath: string, testDataPath: string) {
 			const stableOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
 			stableOptions.codePath = stableCodePath;
 			stableOptions.userDataDir = userDataDir;
+			stableOptions.quality = Quality.Stable;
 
 			const stableApp = new Application(stableOptions);
 			await stableApp!.start();
@@ -81,7 +83,8 @@ export function setup(stableCodePath: string, testDataPath: string) {
 			const insidersApp = new Application(insiderOptions);
 			await insidersApp!.start(false /* not expecting walkthrough path */);
 
-			await insidersApp.workbench.editors.waitForActiveTab(readmeMd, true);
+			await insidersApp.workbench.editors.waitForTab(readmeMd, true);
+			await insidersApp.workbench.editors.selectTab(readmeMd);
 			await insidersApp.workbench.editor.waitForEditorContents(readmeMd, c => c.indexOf(textToType) > -1);
 
 			await insidersApp.workbench.editors.waitForTab(untitled, true);

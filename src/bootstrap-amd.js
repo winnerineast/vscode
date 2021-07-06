@@ -8,6 +8,7 @@
 
 const loader = require('./vs/loader');
 const bootstrap = require('./bootstrap');
+const performance = require('./vs/base/common/performance');
 
 // Bootstrap: NLS
 const nlsConfig = bootstrap.setupNLS();
@@ -42,11 +43,11 @@ exports.load = function (entrypoint, onLoad, onError) {
 		return;
 	}
 
-	// cached data config
-	if (process.env['VSCODE_NODE_CACHED_DATA_DIR']) {
+	// code cache config
+	if (process.env['VSCODE_CODE_CACHE_PATH']) {
 		loader.config({
 			nodeCachedData: {
-				path: process.env['VSCODE_NODE_CACHED_DATA_DIR'],
+				path: process.env['VSCODE_CODE_CACHE_PATH'],
 				seed: entrypoint
 			}
 		});
@@ -55,5 +56,6 @@ exports.load = function (entrypoint, onLoad, onError) {
 	onLoad = onLoad || function () { };
 	onError = onError || function (err) { console.error(err); };
 
+	performance.mark(`code/fork/willLoadCode`);
 	loader([entrypoint], onLoad, onError);
 };
